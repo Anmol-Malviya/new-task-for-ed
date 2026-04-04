@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.venv/
+*.zip
+ED interns-20260330T180111Z-1-001/
+git_push_error.txt
+.DS_Store
+*.log
+EventDhara-New-Model/frontend/node_modules/
+EventDhara-New-Model/backend/.venv/
+EventDhara-New-Model/frontend/.next/

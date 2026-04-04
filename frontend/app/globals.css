@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ─── CSS Custom Properties (Design Tokens) ──────────── */
+:root {
+  /* Brand colours */
+  --color-primary:       #F97316;   /* orange */
+  --color-primary-dark:  #EA580C;
+  --color-primary-light: #FFEDD5;
+  --color-accent:        #F43F5E;   /* rose */
+
+  /* Neutrals */
+  --color-text:          #1A1A1A;
+  --color-text-muted:    #6B7280;
+  --color-border:        #E5E7EB;
+  --color-bg:            #FFFDF9;
+  --color-bg-subtle:     #FFFFFF;
+
+  /* Typography */
+  --font-primary: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ─── Base ───────────────────────────────────────────── */
+html {
+  font-family: var(--font-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar classes */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

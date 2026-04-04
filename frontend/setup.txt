@@ -1,0 +1,6 @@
+# Don't use CDN icons 
+
+npm install lucide-react                      # Lucide Icons 
+npm install sonner                            # Toast notifications
+npm install axios                             # HTTP client
+npm install date-fns                          # Date handling (for booking date pickers)

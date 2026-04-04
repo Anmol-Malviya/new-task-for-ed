@@ -1,0 +1,278 @@
+basic structure changes
+24f9d93
+backend\.gitignore
+@@ -1,58 +1,230 @@
+# compiled output
+/dist
+/node_modules
+/build
+# =============================================================================
+# ENVIRONMENT & SECRETS
+# =============================================================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.cert
+secrets/
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+MANIFEST
+
+# Logs
+logs
+# =============================================================================
+# VIRTUAL ENVIRONMENT
+# =============================================================================
+venv/
+env/
+ENV/
+.venv/
+.env/
+virtualenv/
+.virtualenvs/
+
+# =============================================================================
+# DJANGO SPECIFIC
+# =============================================================================
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# OS
+.DS_Store
+# Media files (use S3 in production)
+backend/media/
+
+# Static files (collected, not source)
+backend/staticfiles/
+backend/static_root/
+
+# Django migrations (teams differ on this — we keep migrations)
+# DO NOT ignore migrations in a team project
+
+# Silk profiler data
+backend/silk/
+
+# =============================================================================
+# LOGS
+# =============================================================================
+logs/
+*.log
+log/
+backend/logs/
+frontend/logs/
+celery*.log
+django*.log
+error*.log
+access*.log
+
+# =============================================================================
+# DATABASE
+# =============================================================================
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+pgdata/
+postgres_data/
+redis_data/
+
+# Tests
+/coverage
+/.nyc_output
+# =============================================================================
+# DOCKER
+# =============================================================================
+# Keep Dockerfiles and docker-compose tracked
+# Ignore generated volumes and local override files
+docker-compose.override.yml
+docker-compose.local.yml
+.docker/
+docker/volumes/
+
+# IDEs and editors
+/.idea
+# =============================================================================
+# CELERY
+# =============================================================================
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid
+celery_worker.pid
+
+# =============================================================================
+# COVERAGE & TESTING
+# =============================================================================
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+.tox/
+nosetests.xml
+test-results/
+junit*.xml
+
+# =============================================================================
+# MYPY & TYPE CHECKING
+# =============================================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# =============================================================================
+# RUFF & LINTING
+# =============================================================================
+.ruff_cache/
+
+# =============================================================================
+# NODE / NEXT.JS FRONTEND
+# =============================================================================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.nuxt/
+frontend/dist/
+frontend/build/
+frontend/.cache/
+frontend/.turbo/
+
+# Next.js specific
+frontend/.next/
+frontend/next-env.d.ts
+
+# Package lock files — pick ONE and track it, ignore the others
+# If using npm:
+# frontend/yarn.lock
+# frontend/pnpm-lock.yaml
+# If using yarn:
+# frontend/package-lock.json
+# frontend/pnpm-lock.yaml
+
+# =============================================================================
+# IDE & EDITOR
+# =============================================================================
+.vscode/
+!.vscode/extensions.json    # keep recommended extensions
+!.vscode/settings.json      # keep shared settings if your team uses vscode
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-project
+*.sublime-workspace
+.history/
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+# =============================================================================
+# OS GENERATED
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+# =============================================================================
+# SENTRY
+# =============================================================================
+.sentryclirc
+
+# temp directory
+.temp
+.tmp
+# =============================================================================
+# NGINX
+# =============================================================================
+nginx/logs/
+nginx/*.pid
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+# =============================================================================
+# UPLOADS & GENERATED FILES
+# =============================================================================
+backend/uploads/
+*.pdf
+*.xlsx
+*.csv
+# Be careful with this — only ignore generated ones
+# If you have seed fixture CSVs you want tracked, be specific
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+# =============================================================================
+# CERTIFICATES & SSL
+# =============================================================================
+*.pem
+*.crt
+*.csr
+nginx/certs/
+ssl/
+
+/generated/prisma
+# =============================================================================
+# MISC
+# =============================================================================
+*.bak
+*.tmp
+*.temp
+*.orig
+*.patch
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+/generated/prisma

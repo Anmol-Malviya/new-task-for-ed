@@ -1,0 +1,7 @@
+SystemCheckError: System check identified some issues:
+
+ERRORS:
+service_all.ServiceCategory.category: (fields.E300) Field defines a relation with model 'service_categories_all.Category', which is either not installed, or is abstract.
+service_all.ServiceCategory.category: (fields.E307) The field service_all.ServiceCategory.category was declared with a lazy reference to 'service_categories_all.category', but app 'service_categories_all' isn't installed.
+
+System check identified 2 issues (0 silenced).

@@ -1,0 +1,19 @@
+SystemCheckError: System check identified some issues:
+
+ERRORS:
+bidding_all.Bidding.generated_image: (fields.E300) Field defines a relation with model 'generated_images.GeneratedImage', which is either not installed, or is abstract.
+bidding_all.Bidding.generated_image: (fields.E307) The field bidding_all.Bidding.generated_image was declared with a lazy reference to 'generated_images.generatedimage', but app 'generated_images' isn't installed.
+image_generation_all.Image.image_category: (fields.E300) Field defines a relation with model 'image_categories.ImageCategory', which is either not installed, or is abstract.
+image_generation_all.Image.image_category: (fields.E307) The field image_generation_all.Image.image_category was declared with a lazy reference to 'image_categories.imagecategory', but app 'image_categories' isn't installed.
+packages_all.CartPackageService.package_category: (fields.E300) Field defines a relation with model 'package_categories.PackageCategory', which is either not installed, or is abstract.
+packages_all.CartPackageService.package_category: (fields.E307) The field packages_all.CartPackageService.package_category was declared with a lazy reference to 'package_categories.packagecategory', but app 'package_categories' isn't installed.
+packages_all.ServicePackage.package_category: (fields.E300) Field defines a relation with model 'package_categories.PackageCategory', which is either not installed, or is abstract.
+packages_all.ServicePackage.package_category: (fields.E307) The field packages_all.ServicePackage.package_category was declared with a lazy reference to 'package_categories.packagecategory', but app 'package_categories' isn't installed.
+packages_all.WishlistPackage.wishlist: (fields.E300) Field defines a relation with model 'wishlist.Wishlist', which is either not installed, or is abstract.
+packages_all.WishlistPackage.wishlist: (fields.E307) The field packages_all.WishlistPackage.wishlist was declared with a lazy reference to 'wishlist.wishlist', but app 'wishlist' isn't installed.
+packages_all.WishlistPackageService.package_category: (fields.E300) Field defines a relation with model 'package_categories.PackageCategory', which is either not installed, or is abstract.
+packages_all.WishlistPackageService.package_category: (fields.E307) The field packages_all.WishlistPackageService.package_category was declared with a lazy reference to 'package_categories.packagecategory', but app 'package_categories' isn't installed.
+service_all.ServiceCategory.category: (fields.E300) Field defines a relation with model 'all_categories.Category', which is either not installed, or is abstract.
+service_all.ServiceCategory.category: (fields.E307) The field service_all.ServiceCategory.category was declared with a lazy reference to 'all_categories.category', but app 'all_categories' isn't installed.
+
+System check identified 14 issues (0 silenced).

@@ -60,8 +60,8 @@ export default function VendorRegister() {
           <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-black/20 rounded-full blur-3xl" />
           
           <div className="relative z-10 flex items-center gap-3">
-            <div className="h-12 bg-white rounded-xl shadow-lg flex items-center justify-center p-2.5 px-3">
-               <img src="/Eventdhara_logo.png" alt="Logo" className="h-full w-auto object-contain" />
+            <div className="h-12 bg-white/20 backdrop-blur-md rounded-xl shadow-lg flex items-center justify-center p-2.5 px-4 border border-white/30">
+               <span className="text-white font-bold text-xl tracking-tight">EventDhara</span>
             </div>
           </div>
 
@@ -227,7 +227,7 @@ export default function VendorRegister() {
             <div className="text-center pt-2 border-t border-gray-100">
               <p className="text-gray-500 mt-4 text-sm">
                 Already a vendor?{' '}
-                <Link href="/auth/Login" className="font-semibold text-slate-900 hover:text-amber-600 transition-colors">
+                <Link href="/auth/VendorLogin" className="font-semibold text-slate-900 hover:text-amber-600 transition-colors">
                   Login here
                 </Link>
               </p>

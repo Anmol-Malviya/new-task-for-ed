@@ -14,6 +14,8 @@ urlpatterns = [
     # ── Vendor Auth ───────────────────────────────────────────────────
     path('auth/vendor-register/', views.register_vendor, name='register_vendor'),
     path('auth/vendor-login/', views.login_vendor, name='login_vendor'),
+    path('auth/vendor-otp/request/', views.request_vendor_otp, name='request_vendor_otp'),
+    path('auth/vendor-otp/verify/', views.login_vendor_with_otp, name='login_vendor_with_otp'),
 
     # ── Services ──────────────────────────────────────────────────────
     path('services/', views.get_services, name='get_services'),
@@ -55,7 +57,19 @@ urlpatterns = [
     path('admin/whatsapp-bot/broadcast/', admin_views.send_broadcast, name='send_broadcast'),
     path('admin/system-config/', admin_views.system_config, name='system_config'),
 
+    # ── Vendor Onboarding Admin ───────────────────────────────────────
+    path('admin/vendor-approvals/', views.admin_vendor_approvals, name='admin_vendor_approvals'),
+    path('admin/vendor/<int:vendor_id>/approve/', views.admin_approve_vendor, name='admin_approve_vendor'),
+    path('admin/vendor/<int:vendor_id>/reject/', views.admin_reject_vendor, name='admin_reject_vendor'),
+    path('admin/vendor/<int:vendor_id>/blacklist/', views.admin_blacklist_vendor, name='admin_blacklist_vendor'),
+    path('admin/vendor/photos/pending/', views.admin_pending_photos, name='admin_pending_photos'),
+    path('admin/vendor/photos/<int:photo_id>/approve/', views.admin_approve_photo, name='admin_approve_photo'),
+    path('admin/vendor/photos/<int:photo_id>/reject/', views.admin_reject_photo, name='admin_reject_photo'),
+
     # ── Packages ──────────────────────────────────────────────────────
     path('packages/premium/', views.get_premium_packages, name='get_premium_packages'),
     path('packages/services/', views.get_service_packages, name='get_service_packages'),
+    
+    # ── Vendors Public ────────────────────────────────────────────────
+    path('vendors/<int:vendor_id>/portfolio/', views.get_vendor_portfolio, name='get_vendor_portfolio'),
 ]

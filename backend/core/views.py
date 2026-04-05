@@ -156,6 +156,7 @@ def register_vendor(request):
 
 @api_view(['POST'])
 def login_vendor(request):
+    """Legacy email+password login"""
     email = request.data.get('email')
     password = request.data.get('password')
     if not email or not password:
@@ -169,6 +170,75 @@ def login_vendor(request):
         token = _make_token({'vendor_id': vendor.vendor_id, 'email': vendor.email, 'role': 'vendor'})
         return Response({'message': 'Login successful', 'token': token, 'vendor': VendorPublicSerializer(vendor).data})
     return Response({'message': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['POST'])
+def request_vendor_otp(request):
+    """POST /api/auth/vendor-otp/request/"""
+    phone = request.data.get('phone')
+    if not phone:
+        return Response({'message': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor = Vendor.objects.get(phone=phone)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'No registered vendor found with this phone number.'}, status=status.HTTP_404_NOT_FOUND)
+        
+    import random
+    from apps.otp.otp_all.models import Otp
+    
+    otp_code = str(random.randint(1000, 9999))
+    
+    # Invalidate old OTPs for this number
+    Otp.objects.filter(number=phone).delete()
+    
+    # Store new OTP
+    Otp.objects.create(number=phone, otp=otp_code)
+    
+    # TODO: Integrate Exotel/WATI to send actual WhatsApp message here
+    print(f"🔒 [MOCK WHATSAPP] To Vendor {vendor.business_name} ({phone}): Your EventDhara Vendor Login OTP is {otp_code}")
+    
+    # Return it in dev mode so we can log it on the frontend console
+    return Response({'message': 'OTP sent successfully', 'dev_otp': otp_code})
+
+
+@api_view(['POST'])
+def login_vendor_with_otp(request):
+    """POST /api/auth/vendor-otp/verify/"""
+    phone = request.data.get('phone')
+    otp_input = request.data.get('otp')
+    
+    if not phone or not otp_input:
+        return Response({'message': 'Phone and OTP are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    from apps.otp.otp_all.models import Otp
+    from django.utils import timezone
+    import datetime
+        
+    try:
+        otp_record = Otp.objects.get(number=phone, otp=otp_input)
+        
+        # Check expiry (e.g. 5 minutes)
+        if timezone.now() > otp_record.time_stamp + datetime.timedelta(minutes=5):
+            otp_record.delete()
+            return Response({'message': 'OTP has expired'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        vendor = Vendor.objects.get(phone=phone)
+        
+        # Success!
+        otp_record.delete()
+        
+        token = _make_token({'vendor_id': vendor.vendor_id, 'email': vendor.email, 'role': 'vendor'})
+        return Response({
+            'message': 'Login successful',
+            'token': token,
+            'vendor': VendorPublicSerializer(vendor).data
+        })
+        
+    except Otp.DoesNotExist:
+        return Response({'message': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor account not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -521,3 +591,251 @@ def get_service_packages(request):
         qs = qs.filter(service_id=service_id)
         
     return Response(ServicePackageSerializer(qs, many=True).data)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — VENDOR APPROVAL FLOW
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def admin_vendor_approvals(request):
+    """GET /api/admin/vendor-approvals/ — List vendors pending approval"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    pending = Vendor.objects.filter(
+        onboarding_completed=True,
+        is_approved=False,
+        is_blacklisted=False
+    ).order_by('-vendor_id')
+
+    data = []
+    for v in pending:
+        has_bank = hasattr(v, 'bank_details')
+        has_agreement = hasattr(v, 'agreement') and v.agreement.is_fully_signed()
+        data.append({
+            'vendor_id': v.vendor_id,
+            'name': v.name,
+            'business_name': v.business_name,
+            'owner_name': v.owner_name,
+            'email': v.email,
+            'phone': v.phone,
+            'city': v.city,
+            'vendor_type': v.vendor_type,
+            'onboarding_step': v.onboarding_step,
+            'onboarding_completed': v.onboarding_completed,
+            'photo_count': v.photos.count(),
+            'approved_photos': v.photos.filter(is_approved=True).count(),
+            'has_bank_details': has_bank,
+            'bank_status': v.bank_details.verification_status if has_bank else 'none',
+            'has_agreement': has_agreement,
+            'created_at': v.created_at,
+        })
+    return Response({'pending_count': len(data), 'vendors': data})
+
+
+@api_view(['PATCH'])
+def admin_approve_vendor(request, vendor_id):
+    """PATCH /api/admin/vendor/<id>/approve/"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    import datetime as dt
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    vendor.is_approved = True
+    vendor.is_active = True
+    vendor.is_verified = True
+    vendor.approved_at = now
+    vendor.score = max(vendor.score, 50)  # ensure default 50
+
+    # Apply +20 new vendor boost for 14 days
+    vendor.score_boost_expires_at = now + dt.timedelta(days=14)
+    vendor.score += 20
+
+    from apps.vendors.vendors_all.models import VendorScoreLog
+    VendorScoreLog.objects.create(
+        vendor=vendor,
+        old_score=vendor.score - 20,
+        new_score=vendor.score,
+        delta=20,
+        reason='New vendor approval bonus (+20 for 14 days)',
+    )
+    vendor.save()
+
+    # TODO: Send WhatsApp "Welcome to EventDhara! Your profile is live."
+
+    return Response({
+        'message': f'Vendor {vendor.business_name} approved successfully!',
+        'vendor_id': vendor.vendor_id,
+        'score_after_boost': vendor.score,
+        'boost_expires': vendor.score_boost_expires_at,
+        'whatsapp_sent': False,  # TODO: integrate WATI
+    })
+
+
+@api_view(['PATCH'])
+def admin_reject_vendor(request, vendor_id):
+    """PATCH /api/admin/vendor/<id>/reject/"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    reason = request.data.get('reason', 'Did not meet quality standards')
+    vendor.is_active = False
+    vendor.is_approved = False
+    vendor.save()
+
+    # TODO: Notify vendor via WhatsApp with rejection reason
+
+    return Response({
+        'message': f'Vendor {vendor.business_name} rejected.',
+        'reason': reason,
+    })
+
+
+@api_view(['PATCH'])
+def admin_blacklist_vendor(request, vendor_id):
+    """PATCH /api/admin/vendor/<id>/blacklist/"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    reason = request.data.get('reason', '')
+    action = request.data.get('action', 'blacklist')  # 'blacklist' or 'unblacklist'
+
+    if action == 'unblacklist':
+        vendor.is_blacklisted = False
+        vendor.is_active = True
+        vendor.save()
+        return Response({'message': f'Vendor {vendor.business_name} removed from blacklist.'})
+
+    vendor.is_blacklisted = True
+    vendor.is_active = False
+
+    # Optional: Apply score penalty
+    penalty = int(request.data.get('score_penalty', 0))
+    if penalty > 0:
+        from apps.vendors.vendors_all.models import VendorScoreLog
+        old = vendor.score
+        vendor.score = max(0, vendor.score - penalty)
+        VendorScoreLog.objects.create(
+            vendor=vendor,
+            old_score=old,
+            new_score=vendor.score,
+            delta=-penalty,
+            reason=f'Admin blacklist penalty: {reason}',
+        )
+    vendor.save()
+
+    return Response({
+        'message': f'Vendor {vendor.business_name} blacklisted.',
+        'reason': reason,
+        'score_penalty_applied': penalty,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — PHOTO APPROVAL
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def admin_pending_photos(request):
+    """GET /api/admin/vendor/photos/pending/"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    from apps.vendors.vendors_all.models import VendorPhoto
+    photos = VendorPhoto.objects.filter(is_approved__isnull=True).select_related('vendor').order_by('-uploaded_at')
+    data = [{
+        'photo_id': p.id,
+        'photo_url': p.photo_url,
+        'vendor_id': p.vendor.vendor_id,
+        'vendor_name': p.vendor.business_name,
+        'occasion_tag': p.occasion_tag,
+        'uploaded_at': p.uploaded_at,
+    } for p in photos]
+    return Response({'pending_count': len(data), 'photos': data})
+
+
+@api_view(['PATCH'])
+def admin_approve_photo(request, photo_id):
+    """PATCH /api/admin/vendor/photos/<id>/approve/"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    from apps.vendors.vendors_all.models import VendorPhoto
+    from django.utils import timezone as tz
+    try:
+        photo = VendorPhoto.objects.get(id=photo_id)
+    except VendorPhoto.DoesNotExist:
+        return Response({'message': 'Photo not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    photo.is_approved = True
+    photo.approved_at = tz.now()
+    photo.save()
+    return Response({'message': 'Photo approved', 'photo_id': photo_id})
+
+
+@api_view(['PATCH'])
+def admin_reject_photo(request, photo_id):
+    """PATCH /api/admin/vendor/photos/<id>/reject/"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    from apps.vendors.vendors_all.models import VendorPhoto
+    try:
+        photo = VendorPhoto.objects.get(id=photo_id)
+    except VendorPhoto.DoesNotExist:
+        return Response({'message': 'Photo not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    reason = request.data.get('reason', 'other')
+    photo.is_approved = False
+    photo.rejection_reason = reason
+    photo.save()
+    return Response({'message': 'Photo rejected', 'reason': reason, 'photo_id': photo_id})
+
+
+# ─────────────────────────────────────────────────────────────────────
+# VENDORS PUBLIC
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def get_vendor_portfolio(request, vendor_id):
+    """GET /api/vendors/<id>/portfolio/ — Public view of a vendor's approved photos"""
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+        if not vendor.is_approved or vendor.is_blacklisted:
+            return Response({'message': 'Vendor unavailable'}, status=status.HTTP_404_NOT_FOUND)
+        
+        photos = vendor.photos.filter(is_approved=True).order_by('-uploaded_at')
+        
+        return Response({
+            'vendor_id': vendor.vendor_id,
+            'business_name': vendor.business_name,
+            'brand_logo': vendor.brand_logo,
+            'bio': getattr(vendor, 'bio', ''),
+            'city': vendor.city,
+            'score': vendor.score,
+            'avg_rating': vendor.avg_rating,
+            'portfolio': [
+                {
+                    'photo_id': p.id,
+                    'photo_url': p.photo_url,
+                    'occasion_tag': p.occasion_tag,
+                    'uploaded_at': p.uploaded_at
+                } for p in photos
+            ]
+        })
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)

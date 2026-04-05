@@ -1,6 +1,10 @@
 from django.contrib import admin
 from apps.users.users_all.models import User
-from apps.vendors.vendors_all.models import Vendor, QueryVendor
+from apps.vendors.vendors_all.models import (
+    Vendor, QueryVendor,
+    VendorPhoto, VendorBankDetails, VendorAgreement,
+    VendorScoreLog, VendorViolation, VendorPremiumLog,
+)
 from apps.service_categories.service_categories_all.models import Category
 from apps.service.service_all.models import Service
 from apps.carts.package_carts.models import Package as BasePackage
@@ -21,9 +25,50 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
-    list_display = ('vendor_id', 'business_name', 'name', 'email', 'phone', 'city')
-    search_fields = ('business_name', 'name', 'email', 'phone', 'city')
-    list_filter = ('city', 'state', 'country')
+    list_display   = ('vendor_id', 'business_name', 'email', 'city', 'tier',
+                      'is_premium', 'is_approved', 'is_active', 'score')
+    search_fields  = ('business_name', 'name', 'email', 'phone', 'city')
+    list_filter    = ('is_premium', 'is_approved', 'is_active', 'tier', 'is_blacklisted', 'city')
+    readonly_fields = ('premium_since', 'premium_expires_at', 'approved_at', 'created_at')
+    actions        = ['grant_premium', 'revoke_premium', 'approve_vendor']
+
+    def grant_premium(self, request, queryset):
+        from django.utils import timezone
+        import datetime
+        now = timezone.now()
+        for v in queryset:
+            v.is_premium         = True
+            v.premium_since      = v.premium_since or now
+            v.premium_expires_at = (v.premium_expires_at or now) + datetime.timedelta(days=31)
+            v.tier               = 'premium'
+            v.save(update_fields=['is_premium', 'premium_since', 'premium_expires_at', 'tier'])
+            VendorPremiumLog.objects.create(vendor=v, event='subscribed', notes='Admin grant (core/admin)')
+        self.message_user(request, f'Premium granted to {queryset.count()} vendor(s) for 1 month.')
+    grant_premium.short_description = '⭐ Grant Premium (1 month)'
+
+    def revoke_premium(self, request, queryset):
+        for v in queryset:
+            completed = v.orders.filter(status='paid_out').count()
+            v.is_premium = False
+            v.tier = 'active' if completed >= 5 else 'starter'
+            v.save(update_fields=['is_premium', 'tier'])
+            VendorPremiumLog.objects.create(vendor=v, event='expired', notes='Admin revoke (core/admin)')
+        self.message_user(request, f'Premium revoked from {queryset.count()} vendor(s).')
+    revoke_premium.short_description = '✕ Revoke Premium'
+
+    def approve_vendor(self, request, queryset):
+        from django.utils import timezone
+        import datetime
+        now = timezone.now()
+        for v in queryset:
+            v.is_approved = True
+            v.is_active   = True
+            v.approved_at = now
+            v.score      += 20
+            v.score_boost_expires_at = now + datetime.timedelta(days=14)
+            v.save(update_fields=['is_approved', 'is_active', 'approved_at', 'score', 'score_boost_expires_at'])
+        self.message_user(request, f'Approved {queryset.count()} vendor(s) with +20 score bonus.')
+    approve_vendor.short_description = '✓ Approve Vendor (+20 score bonus)'
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
@@ -84,3 +129,43 @@ class AddressAdmin(admin.ModelAdmin):
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
     list_display = ('cart_id', 'user', 'service', 'total_price', 'is_saved')
+
+
+# ── Vendor supplementary models ──────────────────────────────────────────────
+@admin.register(VendorPremiumLog)
+class VendorPremiumLogAdmin(admin.ModelAdmin):
+    list_display  = ('vendor', 'event', 'amount', 'razorpay_subscription_id', 'timestamp')
+    list_filter   = ('event',)
+    search_fields = ('vendor__business_name', 'razorpay_subscription_id')
+    ordering      = ('-timestamp',)
+
+@admin.register(VendorPhoto)
+class VendorPhotoAdmin(admin.ModelAdmin):
+    list_display  = ('vendor', 'is_approved', 'occasion_tag', 'uploaded_at')
+    list_filter   = ('is_approved',)
+    actions       = ['approve_photos']
+
+    def approve_photos(self, request, queryset):
+        from django.utils import timezone
+        queryset.update(is_approved=True, approved_at=timezone.now())
+        self.message_user(request, f'{queryset.count()} photo(s) approved.')
+    approve_photos.short_description = '✓ Approve selected photos'
+
+@admin.register(VendorBankDetails)
+class VendorBankDetailsAdmin(admin.ModelAdmin):
+    list_display  = ('vendor', 'bank_name', 'verification_status', 'submitted_at')
+    list_filter   = ('verification_status',)
+
+@admin.register(VendorAgreement)
+class VendorAgreementAdmin(admin.ModelAdmin):
+    list_display = ('vendor', 'signed_at', 'non_solicitation_clause', 'commission_rate_agreed')
+
+@admin.register(VendorScoreLog)
+class VendorScoreLogAdmin(admin.ModelAdmin):
+    list_display = ('vendor', 'old_score', 'new_score', 'delta', 'reason', 'timestamp')
+    ordering     = ('-timestamp',)
+
+@admin.register(VendorViolation)
+class VendorViolationAdmin(admin.ModelAdmin):
+    list_display = ('vendor', 'violation_type', 'severity', 'resolved', 'reported_at')
+    list_filter  = ('severity', 'resolved')

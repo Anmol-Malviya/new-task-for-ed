@@ -11,12 +11,12 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const { isLoggedIn, isLoading: authLoading, login, vendorLogin } = useAuth();
 
-  const [role, setRole] = useState<'user' | 'vendor'>('user');
+  const [role, setRole] = useState<'user'>('user');
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const redirectTo = searchParams.get('from') || (role === 'vendor' ? '/profile' : '/profile');
+  const redirectTo = searchParams.get('from') || '/profile';
 
   // If already logged in, redirect away
   useEffect(() => {
@@ -34,9 +34,6 @@ function LoginContent() {
       if (role === 'user') {
         // Uses AuthContext login() → updates Navbar instantly
         await login(formData.email, formData.password);
-      } else {
-        // Uses AuthContext vendorLogin() → updates Navbar instantly
-        await vendorLogin(formData.email, formData.password);
       }
       router.push(redirectTo);
     } catch (err: any) {
@@ -59,29 +56,23 @@ function LoginContent() {
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
         
         {/* Left Side: Visual / Branding */}
-        <div className={`md:w-5/12 relative overflow-hidden p-10 flex flex-col justify-between text-white hidden md:flex transition-all duration-500 ${
-          role === 'vendor'
-            ? 'bg-gradient-to-br from-amber-500 via-orange-400 to-rose-600'
-            : 'bg-gradient-to-br from-indigo-600 via-rose-500 to-orange-400'
-        }`}>
+        <div className={`md:w-5/12 relative overflow-hidden p-10 flex flex-col justify-between text-white hidden md:flex transition-all duration-500 bg-gradient-to-br from-indigo-600 via-rose-500 to-orange-400`}>
           <div className="absolute inset-0 bg-white/10 backdrop-blur-3xl opacity-20" />
           <div className="absolute -top-32 -left-32 w-64 h-64 bg-white/20 rounded-full blur-3xl" />
           <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-black/20 rounded-full blur-3xl" />
           
           <div className="relative z-10 flex items-center gap-3">
-            <div className="h-12 bg-white rounded-xl shadow-lg flex items-center justify-center p-2.5 px-3">
-               <img src="/Eventdhara_logo.png" alt="Logo" className="h-full w-auto object-contain" />
+            <div className="h-12 bg-white/20 backdrop-blur-md rounded-xl shadow-lg flex items-center justify-center p-2.5 px-4 border border-white/30">
+               <span className="text-white font-bold text-xl tracking-tight">EventDhara</span>
             </div>
           </div>
 
           <div className="relative z-10 space-y-4">
             <h1 className="text-4xl font-extrabold tracking-tight leading-tight">
-              {role === 'vendor' ? 'Grow Your Business' : 'Curate Your Perfect Event'}
+              Curate Your Perfect Event
             </h1>
             <p className="text-white/80 text-lg leading-relaxed">
-              {role === 'vendor'
-                ? 'Login to your vendor dashboard and manage your services, bookings, and leads all in one place.'
-                : 'Login to access the finest vendors, exclusive packages, and start piecing together your dream occasion.'}
+              Login to access the finest vendors, exclusive packages, and start piecing together your dream occasion.
             </p>
           </div>
 
@@ -116,12 +107,8 @@ function LoginContent() {
               </button>
               <button
                 type="button"
-                onClick={() => { setRole('vendor'); setError(''); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  role === 'vendor'
-                    ? 'bg-white text-amber-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
+                onClick={() => { router.push('/auth/VendorLogin'); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 text-gray-500 hover:text-amber-600`}
               >
                 <Store className="w-4 h-4" />
                 Vendor
@@ -177,17 +164,13 @@ function LoginContent() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full text-white font-medium py-3.5 px-4 rounded-xl shadow-lg transition-all duration-200 flex justify-center items-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed ${
-                  role === 'vendor'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-200'
-                    : 'bg-slate-900 hover:bg-slate-800 shadow-slate-200'
-                }`}
+                className="w-full text-white font-medium py-3.5 px-4 rounded-xl shadow-lg transition-all duration-200 flex justify-center items-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed bg-slate-900 hover:bg-slate-800 shadow-slate-200"
               >
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {role === 'vendor' ? 'Sign in as Vendor' : 'Sign in to your account'}
+                    Sign in to your account
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -195,21 +178,12 @@ function LoginContent() {
             </form>
 
             <div className="text-center pt-2 border-t border-gray-100 space-y-2">
-              {role === 'user' ? (
                 <p className="text-gray-500 mt-4">
                   Don&apos;t have an account?{' '}
                   <Link href="/auth/Register" className="font-semibold text-slate-900 hover:text-rose-600 transition-colors">
                     Create an account
                   </Link>
                 </p>
-              ) : (
-                <p className="text-gray-500 mt-4">
-                  Not a vendor yet?{' '}
-                  <Link href="/auth/VendorRegister" className="font-semibold text-amber-600 hover:text-amber-700 transition-colors">
-                    Apply as Vendor
-                  </Link>
-                </p>
-              )}
             </div>
           </div>
         </div>

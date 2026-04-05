@@ -1,80 +1,113 @@
-from django.core.management.base import BaseCommand
+"""
+calculate_vendor_scores management command
+==========================================
+Run every Monday at 6 AM (via Celery beat or cron):
+  python manage.py calculate_vendor_scores
+
+Uses the composite 5-factor score algorithm from score_service.py.
+Also updates vendor tier, runs decline-penalty checks, and triggers
+audit alerts for low-conversion vendors.
+"""
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from apps.vendors.vendors_all.models import Vendor, VendorScoreLog
-from apps.queries.queries_all.models import QueryVendor
-from apps.orders.all_orders.models import Order
-import datetime
+from apps.vendors.vendors_all.score_service import (
+    recalculate_all_vendor_scores,
+    check_and_apply_decline_penalty,
+    detect_low_conversion_vendors,
+)
+from apps.vendors.vendors_all.models import Vendor
+
 
 class Command(BaseCommand):
-    help = 'Recalculates scores for all vendors based on response rate, rating, and completion rate. Designed to run every Monday.'
+    help = (
+        'Recalculates composite scores for all active vendors (every Monday). '
+        'Uses 5-factor algorithm: availability, rating, response rate, lead load + modifiers.'
+    )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--vendor-id',
+            type=int,
+            default=None,
+            help='Recalculate score for a single vendor (by ID) instead of all.',
+        )
+        parser.add_argument(
+            '--audit',
+            action='store_true',
+            default=False,
+            help='Also run low-conversion audit and print suspects.',
+        )
 
     def handle(self, *args, **options):
-        self.stdout.write("Starting weekly vendor score recalculation...")
-        vendors = Vendor.objects.filter(is_active=True, is_approved=True)
-        now = timezone.now()
-        thirty_days_ago = now - datetime.timedelta(days=30)
-        
-        count = 0
-        for vendor in vendors:
-            old_score = vendor.score
-            
-            # --- 1. Response Rate (Last 30 Days) ---
-            recent_queries = QueryVendor.objects.filter(vendor=vendor, query__time_stamp__gte=thirty_days_ago)
-            total_recent = recent_queries.count()
-            
-            if total_recent > 0:
-                responded = recent_queries.filter(status__in=['accepted', 'declined']).count()
-                vendor.response_rate = round((responded / total_recent) * 100, 2)
+        vendor_id = options.get('vendor_id')
+
+        if vendor_id:
+            # ── Single vendor mode ───────────────────────────────────
+            try:
+                vendor = Vendor.objects.get(vendor_id=vendor_id)
+            except Vendor.DoesNotExist:
+                raise CommandError(f'Vendor #{vendor_id} not found.')
+
+            from apps.vendors.vendors_all.score_service import calculate_composite_score
+            new_score = calculate_composite_score(vendor)
+            self.stdout.write(self.style.SUCCESS(
+                f'✓ Vendor #{vendor_id} ({vendor.business_name}): score → {new_score}, tier → {vendor.tier}'
+            ))
+        else:
+            # ── Bulk recalculation ───────────────────────────────────
+            self.stdout.write('⏳  Starting weekly vendor score recalculation (composite 5-factor)...')
+            results = recalculate_all_vendor_scores()
+
+            ok  = [r for r in results if 'error' not in r]
+            err = [r for r in results if 'error' in r]
+
+            self.stdout.write(self.style.SUCCESS(f'✓  Recalculated scores for {len(ok)} vendors.'))
+            if err:
+                self.stdout.write(self.style.WARNING(f'⚠  Errors for {len(err)} vendors:'))
+                for e in err:
+                    self.stdout.write(f"   vendor_id={e['vendor_id']}: {e['error']}")
+
+        # ── Decline penalty check ────────────────────────────────────
+        self.stdout.write('🔍  Checking decline penalties...')
+        penalised = 0
+        for vendor in Vendor.objects.filter(is_active=True, is_blacklisted=False):
+            if check_and_apply_decline_penalty(vendor):
+                penalised += 1
+        if penalised:
+            self.stdout.write(self.style.WARNING(f'⚠  Applied decline penalty to {penalised} vendors.'))
+        else:
+            self.stdout.write('✓  No decline penalties this week.')
+
+        # ── Low-conversion audit ─────────────────────────────────────
+        if options.get('audit'):
+            self.stdout.write('🔍  Running low-conversion audit...')
+            suspects = detect_low_conversion_vendors()
+            if suspects:
+                self.stdout.write(self.style.WARNING(f'⚠  {len(suspects)} vendors flagged for audit:'))
+                for s in suspects:
+                    self.stdout.write(
+                        f"   #{s['vendor_id']} {s['business_name']} — "
+                        f"{s['accepted_leads']} leads, {s['closed_orders']} closed "
+                        f"({s['conversion_rate']}%) [{s['city']}]"
+                    )
+                # Auto-create admin alerts
+                from apps.admin_panel.models import AdminAlert
+                for s in suspects:
+                    AdminAlert.objects.get_or_create(
+                        vendor_id=s['vendor_id'],
+                        title=f"Low conversion audit: {s['business_name']}",
+                        defaults={
+                            'severity': 'WARNING',
+                            'description': (
+                                f"{s['accepted_leads']} leads accepted, only "
+                                f"{s['closed_orders']} closed ({s['conversion_rate']}%). "
+                                f"Possible platform bypass — review call logs."
+                            ),
+                            'is_resolved': False,
+                        }
+                    )
             else:
-                # If no leads recent, keep response rate optimistic or hold steady
-                if vendor.response_rate == 0:
-                    vendor.response_rate = 100.0  # Default good standing
-                    
-            # --- 2. Completion Rate ---
-            total_orders = vendor.orders.count()
-            if total_orders > 0:
-                completed = vendor.orders.filter(status__in=['delivered', 'paid_out']).count()
-                cancelled = vendor.orders.filter(status='cancelled').count()
-                
-                if (total_orders - cancelled) > 0:
-                     vendor.completion_rate = round((completed / (total_orders - cancelled)) * 100, 2)
-                else:
-                     vendor.completion_rate = 100.0
-            else:
-                vendor.completion_rate = 100.0
+                self.stdout.write('✓  No low-conversion vendors detected.')
 
-            # --- 3. Base Calculation ---
-            # Score formula: 
-            # 50 base points for just being here + 
-            # (Response Rate / 100 * 25) + 
-            # (Completion Rate / 100 * 15) + 
-            # (Avg Rating / 5.0 * 10)
-            
-            base_score = 50
-            resp_points = (vendor.response_rate / 100) * 25
-            comp_points = (vendor.completion_rate / 100) * 15
-            rating_points = (vendor.avg_rating / 5.0) * 10 if vendor.avg_rating > 0 else 10 # give benefit if no rating
+        self.stdout.write(self.style.SUCCESS('✅  Score recalculation complete.'))
 
-            new_score = int(base_score + resp_points + comp_points + rating_points)
-
-            # Check if active boost
-            if vendor.score_boost_expires_at and vendor.score_boost_expires_at > now:
-                new_score += 20
-                
-            # Floor / Ceiling
-            new_score = max(0, min(new_score, 100))
-            
-            if old_score != new_score:
-                VendorScoreLog.objects.create(
-                    vendor=vendor,
-                    old_score=old_score,
-                    new_score=new_score,
-                    delta=new_score - old_score,
-                    reason=f'Weekly Recalc (Resp: {vendor.response_rate}%, Comp: {vendor.completion_rate}%, Rate: {vendor.avg_rating})'
-                )
-            
-            vendor.score = new_score
-            vendor.save(update_fields=['score', 'response_rate', 'completion_rate'])
-            count += 1
-            
-        self.stdout.write(self.style.SUCCESS(f"Recalculated scores for {count} vendors."))

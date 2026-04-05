@@ -11,7 +11,7 @@ from django.db.models import Count, Sum, Avg, Q
 
 # ── Model imports ────────────────────────────────────────────────────
 from apps.users.users_all.models import User
-from apps.vendors.vendors_all.models import Vendor, QueryVendor
+from apps.vendors.vendors_all.models import Vendor, QueryVendor, VendorAvailability
 from apps.orders.all_orders.models import Order
 from apps.queries.queries_all.models import Query
 from apps.admin_panel.models import AdminAlert, CityHealth, Dispute, SystemConfig
@@ -364,14 +364,32 @@ def resolve_dispute(request, dispute_id):
         action = request.data.get('action', 'resolve')  # 'refund', 'hold', 'resolve'
         notes = request.data.get('notes', '')
 
+        from apps.orders.all_orders.models import Order
+        from apps.payments.payments_all.models import Payout
+        order = Order.objects.filter(order_id=dispute.order_id).first()
+
         if action == 'refund':
             dispute.status = 'REFUNDED'
             dispute.refund_issued = True
+            if order:
+                order.status = 'disputed'
+                order.save(update_fields=['status'])
+                Payout.objects.filter(order=order).update(status='failed', failure_reason=notes or 'Refunded via admin')
         elif action == 'hold':
             dispute.status = 'PAYOUT_HELD'
             dispute.payout_held = True
-        else:
+            if order:
+                order.has_dispute = True
+                order.payout_status = 'held'
+                order.save(update_fields=['has_dispute', 'payout_status'])
+                Payout.objects.filter(order=order).update(status='held', held_reason=notes)
+        else: # resolve
             dispute.status = 'RESOLVED'
+            if order:
+                order.has_dispute = False
+                order.payout_status = 'processing'
+                order.save(update_fields=['has_dispute', 'payout_status'])
+                Payout.objects.filter(order=order, status='held').update(status='processing', held_reason=None)
 
         dispute.resolution_notes = notes
         dispute.resolved_at = timezone.now()
@@ -560,3 +578,54 @@ def system_config(request):
         config.updated_by = 'admin'
         config.save()
         return Response({'message': 'System config updated successfully'})
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PANEL 10 — CITY CALENDAR & AVAILABILITY
+# ═══════════════════════════════════════════════════════════════════════
+@api_view(['GET'])
+def admin_city_calendar(request):
+    """GET /api/admin/city-calendar/?city=Delhi"""
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        
+    city = request.GET.get('city')
+    if not city:
+        return Response({'message': 'Query param ?city= is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    vendors = Vendor.objects.filter(city__iexact=city).prefetch_related('availability')
+    
+    # Filter 30 days ahead
+    today = timezone.now().date()
+    end_date = today + datetime.timedelta(days=30)
+    
+    data = []
+    from apps.orders.all_orders.models import Order
+    for v in vendors:
+        blocks = v.availability.filter(blocked_date__range=[today, end_date])
+        recurring_days = list(v.availability.filter(block_type='recurring').values_list('recurring_day', flat=True))
+        
+        orders = Order.objects.filter(
+            vendor=v, 
+            service_date__date__range=[today, end_date],
+            status__in=['lead_accepted', 'price_confirmed', 'payment_received', 'd1_ready']
+        )
+        
+        booked_dates = list(orders.values_list('service_date__date', flat=True))
+        blocked_dates = list(blocks.values_list('blocked_date', flat=True))
+        
+        data.append({
+            'vendor_id': v.vendor_id,
+            'business_name': v.business_name,
+            'vendor_type': v.vendor_type,
+            'max_orders_per_day': v.max_orders_per_day,
+            'recurring_blocked_days': recurring_days, # 0=Monday..
+            'blocked_dates': [str(d) for d in blocked_dates if d],
+            'booked_dates': [str(d) for d in booked_dates if d]
+        })
+        
+    return Response({
+        'city': city,
+        'vendor_count': vendors.count(),
+        'calendar_data': data
+    })

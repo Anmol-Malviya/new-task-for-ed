@@ -19,7 +19,7 @@ from rest_framework import status
 from .models import (
     Vendor, VendorServiceCategory, VendorPhoto,
     VendorBankDetails, VendorAgreement, VendorAvailability,
-    VendorScoreLog, QueryVendor
+    VendorScoreLog, QueryVendor, VendorViolation,
 )
 from .serializers import (
     VendorPublicSerializer, VendorProfileUpdateSerializer,
@@ -195,19 +195,77 @@ def vendor_photos_upload(request):
     if not photo_url:
         return Response({'message': 'photo_url is required'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # ── Portfolio validation ─────────────────────────────────────────
+    occasion_tag = data.get('occasion_tag', None)
+    content_type = data.get('content_type', '').lower()  # e.g. 'image/jpeg'
+    file_size_kb  = int(data.get('file_size_kb', 0))      # file size in KB from frontend
+    width         = int(data.get('width', 0))              # px from Cloudinary metadata
+    height        = int(data.get('height', 0))             # px from Cloudinary metadata
+
+    # File type check (JPG/PNG only)
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
+    if content_type and content_type not in allowed_types:
+        return Response(
+            {'message': 'Only JPG/PNG images are accepted.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # File size check (max 10MB)
+    if file_size_kb > 10 * 1024:
+        return Response(
+            {'message': 'Image exceeds the 10MB maximum file size.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Resolution check (min 800×600)
+    if width and height and (width < 800 or height < 600):
+        return Response(
+            {'message': f'Image resolution too low ({width}x{height}). Minimum required: 800x600.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Occasion distribution check: max 3 photos per occasion unless total > 8
+    if occasion_tag:
+        existing_for_occasion = vendor.photos.filter(occasion_tag=occasion_tag).count()
+        total_photos = vendor.photos.count()
+        if total_photos < 24 and existing_for_occasion >= 6:
+            return Response(
+                {'message': f'Max 6 photos per occasion category. Upload photos from other occasions.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # Create photo record
     photo = VendorPhoto.objects.create(
         vendor=vendor,
         photo_url=photo_url,
         cloudinary_id=data.get('cloudinary_id', ''),
-        occasion_tag=data.get('occasion_tag', None),
+        occasion_tag=occasion_tag,
         is_approved=None,  # Pending admin review
     )
 
-    # Advance onboarding if first photo uploaded
-    if vendor.photos.count() >= 1:
+    # Advance onboarding once 8 photos uploaded
+    total_now = vendor.photos.count()
+    if total_now >= 8:
         _advance_onboarding(vendor, 3)
 
-    return Response(VendorPhotoSerializer(photo).data, status=status.HTTP_201_CREATED)
+    # Check if 3 min per occasion category
+    occasion_counts = {}
+    for cat in vendor.service_categories.values_list('occasion', flat=True):
+        count = vendor.photos.filter(occasion_tag=cat).count()
+        occasion_counts[cat] = count
+    missing_occasions = [occ for occ, cnt in occasion_counts.items() if cnt < 3]
+
+    return Response({
+        **VendorPhotoSerializer(photo).data,
+        'total_photos': total_now,
+        'min_required': 8,
+        'gate_unlocked': total_now >= 8,
+        'missing_occasion_minimums': missing_occasions,
+        'hint': (
+            f'Upload at least 3 photos for: {missing_occasions}' if missing_occasions
+            else 'Photo distribution looks good!'
+        ),
+    }, status=status.HTTP_201_CREATED)
 
 
 @api_view(['DELETE'])
@@ -379,6 +437,13 @@ def vendor_lead_accept(request, lead_id):
     if err:
         return err
 
+    # ── Blacklist guard ──────────────────────────────────────────────
+    if vendor.is_blacklisted:
+        return Response(
+            {'message': 'Your account has been blacklisted. Contact support.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
     try:
         lead = QueryVendor.objects.select_related('query').get(
             query_vendor_id=lead_id, vendor=vendor
@@ -428,6 +493,20 @@ def vendor_lead_accept(request, lead_id):
     # Score: update response rate
     _update_vendor_response_rate(vendor)
 
+    # Check if max orders reached to auto-block the date
+    if query.event_date:
+        active_count = Order.objects.filter(
+            vendor=vendor,
+            service_date__date=query.event_date,
+            status__in=['lead_accepted', 'price_confirmed', 'payment_received', 'd1_ready']
+        ).count()
+        if active_count >= vendor.max_orders_per_day:
+            VendorAvailability.objects.get_or_create(
+                vendor=vendor,
+                blocked_date=query.event_date,
+                defaults={'block_type': 'auto', 'reason': 'Auto-blocked: Max orders reached'}
+            )
+
     return Response({
         'message': 'Lead accepted! Order created.',
         'order_id': order.order_id,
@@ -456,8 +535,14 @@ def vendor_lead_decline(request, lead_id):
     lead.declined_at = timezone.now()
     lead.save()
 
-    # TODO: Trigger routing to next vendor
     _update_vendor_response_rate(vendor)
+
+    # Apply decline penalty if threshold reached (2 declines in 7 days)
+    try:
+        from .score_service import check_and_apply_decline_penalty
+        check_and_apply_decline_penalty(vendor)
+    except Exception:
+        pass
 
     return Response({'message': 'Lead declined. Another vendor will be notified.'})
 
@@ -769,7 +854,7 @@ def vendor_block_date(request):
     reason = request.data.get('reason', '')
     recurring_day = request.data.get('recurring_day', None)
 
-    # Prevent blocking dates with active orders
+    # Prevent blocking dates with active orders or pending/assigned leads
     if blocked_date:
         active_on_date = Order.objects.filter(
             vendor=vendor,
@@ -778,6 +863,14 @@ def vendor_block_date(request):
         ).exists()
         if active_on_date:
             return Response({'message': 'Cannot block a date with an active booking'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pending_leads = QueryVendor.objects.filter(
+            vendor=vendor,
+            status__in=['pending', 'accepted'],
+            query__event_date=blocked_date
+        ).exists()
+        if pending_leads:
+            return Response({'message': 'Cannot block a date while you have an active assigned lead for that day'}, status=status.HTTP_400_BAD_REQUEST)
 
     block = VendorAvailability.objects.create(
         vendor=vendor,
@@ -800,6 +893,30 @@ def vendor_unblock_date(request, date):
     if deleted:
         return Response({'message': f'Date {date} unblocked'}, status=status.HTTP_204_NO_CONTENT)
     return Response({'message': 'No blocked date found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PUT'])
+def vendor_availability_settings(request):
+    """PUT /api/vendor/availability/settings/"""
+    vendor, err = _get_vendor(request)
+    if err:
+        return err
+
+    max_orders = request.data.get('max_orders_per_day')
+    if max_orders is not None:
+        try:
+            max_orders = int(max_orders)
+            if max_orders not in [1, 2, 3]:
+                return Response({'message': 'Max orders per day must be 1, 2, or 3'}, status=status.HTTP_400_BAD_REQUEST)
+            vendor.max_orders_per_day = max_orders
+            vendor.save(update_fields=['max_orders_per_day'])
+        except ValueError:
+            return Response({'message': 'Invalid max orders value'}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        'message': 'Availability settings updated',
+        'max_orders_per_day': vendor.max_orders_per_day
+    })
 
 
 # ─────────────────────────────────────────────
@@ -1185,8 +1302,215 @@ def admin_revoke_premium(request, vendor_id_param):
     completed = vendor.orders.filter(status='paid_out').count()
     vendor.is_premium               = False
     vendor.razorpay_subscription_id = None
-    vendor.tier = 'active' if completed >= 5 else 'starter'
     vendor.save(update_fields=['is_premium', 'tier', 'razorpay_subscription_id'])
     VendorPremiumLog.objects.create(vendor=vendor, event='expired', notes='Admin revoke')
     return Response({'message': 'Premium revoked'})
 
+
+# ─────────────────────────────────────────────────────────────────────
+# TIER INFO — 3-tier benefit matrix for vendor dashboard
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def vendor_tier_info(request):
+    """
+    GET /api/vendor/tier-info/
+    Returns the vendor's current tier, commission rate, lead cap, and all tier benefits.
+    Also shows upgrade requirements and premium perks if applicable.
+    """
+    vendor, err = _get_vendor(request)
+    if err:
+        return err
+
+    completed_orders = vendor.orders.filter(status='paid_out').count()
+
+    TIER_DEFINITIONS = {
+        'starter': {
+            'name': 'Starter',
+            'emoji': '🔸',
+            'commission_rate': 15,
+            'monthly_lead_cap': 8,
+            'required_orders': 0,
+            'benefits': [
+                'Up to 8 leads/month',
+                '15% platform commission',
+                'Basic analytics dashboard',
+                'Exotel masked calling',
+                'Standard support (24hr)',
+            ],
+            'upgrade_at': '5 completed bookings → Active Vendor status',
+        },
+        'active': {
+            'name': 'Active Vendor',
+            'emoji': '✅',
+            'commission_rate': 12,
+            'monthly_lead_cap': 18,
+            'required_orders': 5,
+            'benefits': [
+                'Up to 18 leads/month',
+                '12% platform commission',
+                'Priority in city-level search results',
+                'Full earnings analytics + payout history',
+                'Verified partner badge',
+                'Standard support (24hr)',
+            ],
+            'upgrade_at': '15 completed bookings + Premium subscription → Partner tier',
+        },
+        'premium': {
+            'name': 'EventDhara Partner',
+            'emoji': '🌟',
+            'commission_rate': 10,
+            'monthly_lead_cap': 40,
+            'required_orders': 15,
+            'benefits': [
+                'Up to 40 leads/month (5/day cap)',
+                '10% platform commission',
+                '+15 algorithm boost (always)',
+                'Homepage showcase slot',
+                'Instagram priority feature',
+                '"EventDhara Partner" badge',
+                'Priority support (2hr SLA)',
+                'Early access to new features',
+            ],
+            'upgrade_at': 'Maintain Premium subscription + quality standards',
+        },
+    }
+
+    tier_name  = vendor.tier or 'starter'
+    tier_data  = TIER_DEFINITIONS.get(tier_name, TIER_DEFINITIONS['starter'])
+    commission = vendor.get_commission_rate() * 100
+    lead_cap   = vendor.get_lead_cap()
+
+    # Upgrade progress
+    if tier_name == 'starter':
+        next_tier = 'active'
+        progress  = min(completed_orders / 5 * 100, 100)
+        remaining = max(0, 5 - completed_orders)
+    elif tier_name == 'active' and not vendor.is_premium:
+        next_tier = 'premium'
+        progress  = min(completed_orders / 15 * 100, 100)
+        remaining = max(0, 15 - completed_orders)
+    else:
+        next_tier = None
+        progress  = 100
+        remaining = 0
+
+    # Current month lead usage
+    from django.utils import timezone as tz
+    import datetime as dt
+    now = tz.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    from .models import QueryVendor as QV
+    leads_this_month = QV.objects.filter(vendor=vendor, assigned_at__gte=month_start).count()
+
+    return Response({
+        'vendor_id': vendor.vendor_id,
+        'business_name': vendor.business_name,
+        'current_tier': {
+            **tier_data,
+            'tier_key': tier_name,
+            'actual_commission_pct': commission,
+            'actual_lead_cap': lead_cap,
+            'is_premium': vendor.is_premium,
+            'premium_expires_at': vendor.premium_expires_at,
+        },
+        'stats': {
+            'completed_orders': completed_orders,
+            'score': vendor.score,
+            'response_rate': vendor.response_rate,
+            'leads_used_this_month': leads_this_month,
+            'leads_remaining_this_month': max(0, lead_cap - leads_this_month),
+        },
+        'upgrade': {
+            'next_tier': next_tier,
+            'progress_pct': round(progress, 1),
+            'orders_remaining': remaining,
+            'next_tier_info': TIER_DEFINITIONS.get(next_tier),
+        } if next_tier else None,
+        'all_tiers': TIER_DEFINITIONS,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# PORTFOLIO HEALTH — portfolio gate check + occasion distribution
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def vendor_portfolio_health(request):
+    """
+    GET /api/vendor/portfolio/health/
+    Returns portfolio completeness, gate status (min 8 photos), and occasion distribution.
+    Also indicates if post-event photos need to be uploaded for recent orders.
+    """
+    vendor, err = _get_vendor(request)
+    if err:
+        return err
+
+    all_photos     = vendor.photos.all()
+    approved       = all_photos.filter(is_approved=True)
+    pending        = all_photos.filter(is_approved__isnull=True)
+    rejected       = all_photos.filter(is_approved=False)
+    total          = all_photos.count()
+    approved_count = approved.count()
+
+    # Occasion distribution
+    occasions_registered = list(vendor.service_categories.values_list('occasion', flat=True))
+    occasion_distribution = {}
+    for occ in occasions_registered:
+        cnt = approved.filter(occasion_tag=occ).count()
+        occasion_distribution[occ] = {
+            'count': cnt,
+            'min_required': 3,
+            'meets_minimum': cnt >= 3,
+        }
+
+    missing_occasions = [occ for occ, info in occasion_distribution.items()
+                         if not info['meets_minimum']]
+
+    # Post-event photo prompt: delivered orders in last 30 days without post-event photos
+    from apps.orders.all_orders.models import Order
+    from django.utils import timezone as tz
+    import datetime as dt
+    cutoff = tz.now() - dt.timedelta(days=30)
+    recent_delivered = Order.objects.filter(
+        vendor=vendor,
+        status__in=['delivered', 'paid_out'],
+        service_date__gte=cutoff,
+    ).values('order_id', 'service_date')
+
+    # Check which orders don't have post-event occasion_tag='post_event' photos after that date
+    upload_prompts = []
+    for order in recent_delivered[:5]:  # Show max 5 prompts
+        upload_prompts.append({
+            'order_id': order['order_id'],
+            'service_date': order['service_date'],
+            'message': 'Upload post-event photos from this booking to improve your portfolio!',
+        })
+
+    gate_unlocked = total >= 8
+
+    return Response({
+        'portfolio_gate': {
+            'unlocked':  gate_unlocked,
+            'total_uploaded': total,
+            'min_required': 8,
+            'approved': approved_count,
+            'pending_review': pending.count(),
+            'rejected': rejected.count(),
+            'progress_pct': min(round(total / 8 * 100), 100),
+        },
+        'occasion_distribution': occasion_distribution,
+        'missing_occasion_minimums': missing_occasions,
+        'validation_rules': {
+            'min_photos': 8,
+            'min_per_occasion': 3,
+            'allowed_formats': ['JPG', 'PNG'],
+            'max_file_size_mb': 10,
+            'min_resolution': '800x600',
+        },
+        'post_event_upload_prompts': upload_prompts,
+        'tips': [
+            'Upload at least 3 photos per occasion category',
+            'Use high-resolution images (min 800×600) for better visibility',
+            'Add photos after every completed event for freshness boost',
+            'JPG/PNG only — screenshots or stock images will be rejected',
+        ],
+    })

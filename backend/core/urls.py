@@ -33,7 +33,6 @@ urlpatterns = [
 
     # ── Original Admin API ─────────────────────────────────────────────
     path('admin/login/', views.admin_login, name='admin_login'),
-    # Note: admin_stats/users/vendors/orders/queries are here
     path('admin/users/', views.admin_users, name='admin_users'),
     path('admin/users/<int:user_id>/toggle-blacklist/', views.admin_toggle_user_blacklist, name='admin_toggle_user_blacklist'),
     path('admin/vendors/', views.admin_vendors, name='admin_vendors'),
@@ -41,7 +40,7 @@ urlpatterns = [
     path('admin/queries/', views.admin_queries, name='admin_queries'),
     path('admin/services/', views.admin_services, name='admin_services'),
     path('admin/services/<int:pk>/', views.admin_service_detail, name='admin_service_detail'),
-    
+
     # ── NEW 9-Panel Control Tower Admin API ────────────────────────────
     path('admin/live-dashboard/', admin_views.live_dashboard, name='live_dashboard'),
     path('admin/alerts/<int:alert_id>/resolve/', admin_views.resolve_alert, name='resolve_alert'),
@@ -56,6 +55,7 @@ urlpatterns = [
     path('admin/whatsapp-bot/', admin_views.whatsapp_bot_stats, name='whatsapp_bot_stats'),
     path('admin/whatsapp-bot/broadcast/', admin_views.send_broadcast, name='send_broadcast'),
     path('admin/system-config/', admin_views.system_config, name='system_config'),
+    path('admin/city-calendar/', admin_views.admin_city_calendar, name='admin_city_calendar'),
 
     # ── Vendor Onboarding Admin ───────────────────────────────────────
     path('admin/vendor-approvals/', views.admin_vendor_approvals, name='admin_vendor_approvals'),
@@ -66,10 +66,21 @@ urlpatterns = [
     path('admin/vendor/photos/<int:photo_id>/approve/', views.admin_approve_photo, name='admin_approve_photo'),
     path('admin/vendor/photos/<int:photo_id>/reject/', views.admin_reject_photo, name='admin_reject_photo'),
 
+    # ── Vendor Enforcement (NEW) ───────────────────────────────────────
+    path('admin/vendor/<int:vendor_id>/hold-payout/', views.admin_hold_vendor_payout, name='admin_hold_vendor_payout'),
+    path('admin/vendor/<int:vendor_id>/score-penalty/', views.admin_score_penalty, name='admin_score_penalty'),
+    path('admin/vendor/<int:vendor_id>/violation/', views.admin_record_violation, name='admin_record_violation'),
+    path('admin/vendor/<int:vendor_id>/violations/', views.admin_vendor_violations, name='admin_vendor_violations'),
+    path('admin/vendor/<int:vendor_id>/profile/', views.admin_vendor_profile, name='admin_vendor_profile'),
+
+    # ── Score System (NEW) ────────────────────────────────────────────
+    path('admin/trigger-score-recalc/', views.admin_trigger_score_recalc, name='admin_trigger_score_recalc'),
+    path('admin/audit-triggers/', views.admin_audit_triggers, name='admin_audit_triggers'),
+
     # ── Packages ──────────────────────────────────────────────────────
     path('packages/premium/', views.get_premium_packages, name='get_premium_packages'),
     path('packages/services/', views.get_service_packages, name='get_service_packages'),
-    
+
     # ── Vendors Public ────────────────────────────────────────────────
     path('vendors/<int:vendor_id>/portfolio/', views.get_vendor_portfolio, name='get_vendor_portfolio'),
 ]

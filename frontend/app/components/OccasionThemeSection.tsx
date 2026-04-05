@@ -246,6 +246,7 @@ export default function OccasionThemeSection({ occasionId }: { occasionId: strin
                 src={theme.heroImg}
                 alt=""
                 fill
+                sizes="(max-width: 1024px) 100vw, 40vw"
                 className="object-cover object-center opacity-10"
               />
               <div className="absolute inset-0" style={{
@@ -315,6 +316,7 @@ export default function OccasionThemeSection({ occasionId }: { occasionId: strin
                     src={col.img}
                     alt={col.label}
                     fill
+                    sizes="(max-width: 768px) 25vw, (max-width: 1200px) 15vw, 10vw"
                     className={`object-cover group-hover:scale-110 transition-transform duration-500 ${isDark ? 'opacity-75 group-hover:opacity-100' : ''}`}
                   />
                   {isDark && (

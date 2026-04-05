@@ -36,6 +36,7 @@ urlpatterns = [
 
     # ── Availability ─────────────────────────────────────────────────────
     path('availability/', views.vendor_availability, name='vendor_availability'),
+    path('availability/settings/', views.vendor_availability_settings, name='vendor_availability_settings'),
     path('availability/block/', views.vendor_block_date, name='vendor_block_date'),
     path('availability/<str:date>/unblock/', views.vendor_unblock_date, name='vendor_unblock_date'),
 
@@ -45,6 +46,12 @@ urlpatterns = [
 
     # ── Score ─────────────────────────────────────────────────────────────
     path('score/', views.vendor_score, name='vendor_score'),
+
+    # ── Tier Info (3-tier benefit matrix + upgrade progress) ──────────────
+    path('tier-info/', views.vendor_tier_info, name='vendor_tier_info'),
+
+    # ── Portfolio Health (gate check + occasion distribution) ─────────────
+    path('portfolio/health/', views.vendor_portfolio_health, name='vendor_portfolio_health'),
 
     # ── Premium ───────────────────────────────────────────────────────────
     path('premium/status/', views.vendor_premium_status, name='vendor_premium_status'),

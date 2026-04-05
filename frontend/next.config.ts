@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
         hostname: 'eventdhara.in',
       },
     ],
+    unoptimized: true,
   },
 };
 

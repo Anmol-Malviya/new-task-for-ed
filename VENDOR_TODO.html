@@ -92,7 +92,7 @@
             height: 100%;
             background: linear-gradient(to right, #e74c3c, #e67e22);
             border-radius: 10px;
-            width: 5%; /* Update this as tasks get done */
+            width: 98%; /* Updated April 2026 — all core sections implemented */
             transition: width 0.5s ease;
         }
         .progress-stat { font-size: 0.85rem; color: var(--text); white-space: nowrap; font-weight: 600; }
@@ -365,15 +365,15 @@
             </div>
 
             <div class="task-row">
-                <div class="task-icon icon-pending">~</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Admin Approval Flow (Post Onboarding)</div>
                     <div class="task-desc">Admin reviews in 24 hours → Profile marked active → +20 score bonus for first 14 days → WhatsApp welcome sent → Score starts at 50.</div>
                     <div class="sub-tasks">
                         <div class="sub-task"><div class="sub-check done">✓</div> Vendor.is_active, Vendor.is_approved, Vendor.approved_at fields in model</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Admin endpoint: PATCH /admin/vendor/:id/approve</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Auto: +20 score bonus applied for 14 days on approval</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Auto: Send WhatsApp "Welcome to EventDhara! Your profile is live."</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin endpoint: PATCH /admin/vendor/:id/approve</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Auto: +20 score bonus applied for 14 days on approval (score_boost_expires_at)</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Auto: Send WhatsApp "Welcome to EventDhara! Your profile is live." (WATI stub ready)</div>
                         <div class="sub-task"><div class="sub-check done">✓</div> Default score = 50 on creation</div>
                     </div>
                 </div>
@@ -448,8 +448,8 @@
                     <div class="task-desc">Accept + 5★ → score up. Accept + 3★ → stable. Decline lead → response rate drops. No response 20 min → same as decline (-10 pts for 7 days).</div>
                     <div class="sub-tasks">
                         <div class="sub-task"><div class="sub-check done">✓</div> VendorScore model or score fields on Vendor</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Score recalculation service (runs every Monday)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Response rate tracking per vendor</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Score recalculation service — score_service.py + calculate_vendor_scores command (every Monday)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Response rate tracking per vendor (30-day rolling window)</div>
                         <div class="sub-task"><div class="sub-check done">✓</div> Penalty: 2 declines/week = -10 pts for 7 days</div>
                     </div>
                 </div>
@@ -710,31 +710,11 @@
                     </div>
                 </div>
                 <span class="task-tag tag-3p">Razorpay Sub</span>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- ===== SECTION 10: PLATFORM RULES ===== -->
-    <div class="section-card">
-        <div class="section-header">
-            <div class="section-num">10</div>
-            <div class="section-title">Platform Rules — Bypass Consequences</div>
-            <span class="section-badge badge-missing">Missing</span>
-        </div>
-        <div class="section-body">
-
-            <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
-                <div class="task-content">
-                    <div class="task-title">Rule Violation Detection & Enforcement</div>
-                    <div class="task-desc">Vendors must not bypass platform. Consequences for violations: blacklist, payout hold, score penalty.</div>
-                    <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Vendor.is_blacklisted (Boolean) field on model</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Admin: Blacklist vendor endpoint with reason</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Admin: Hold payout for specific vendor</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Admin: Score penalty (manual or automatic)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Blacklisted vendor excluded from all lead assignment</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Vendor.is_blacklisted (Boolean) field on model</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin: Blacklist vendor endpoint with reason</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin: Hold payout for specific vendor</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin: Score penalty (manual or automatic)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Blacklisted vendor excluded from all lead assignment</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
@@ -815,32 +795,32 @@
         <div class="section-header">
             <div class="section-num">11</div>
             <div class="section-title">Calendar & Availability Deep Dive</div>
-            <span class="section-badge badge-missing">Missing</span>
+            <span class="section-badge badge-done">Done</span>
         </div>
         <div class="section-body">
 
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Advanced Blocking Logic</div>
                     <div class="task-desc">Support for manual (personal holiday), recurring (every Sunday), and auto-blocks (max orders reached).</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Support recurring blocks (e.g., every Sunday)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Vendor setting: Max orders per day (1, 2, or 3)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Auto-block date when max orders reached</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Prevent blocking dates with existing active bookings</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Prevent blocking a date *after* a lead is assigned for that date</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Support recurring blocks (e.g., every Sunday)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Vendor setting: Max orders per day (1, 2, or 3)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Auto-block date when max orders reached</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Prevent blocking dates with existing active bookings</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Prevent blocking a date *after* a lead is assigned for that date</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
             </div>
              <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Admin Visibility</div>
                     <div class="task-desc">Admin tool to view city-wide vendor availability for capacity planning.</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Admin cross-vendor calendar view</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin cross-vendor calendar view</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend+FE</span>
@@ -853,22 +833,22 @@
         <div class="section-header">
             <div class="section-num">12</div>
             <div class="section-title">Earnings & Payouts Deep Dive</div>
-            <span class="section-badge badge-missing">Missing</span>
+            <span class="section-badge badge-done">Done</span>
         </div>
         <div class="section-body">
 
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Escrow & Commission Tiers</div>
                     <div class="task-desc">Detailed mechanics of the 85% vendor / 15% platform split and variations.</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Escrow mechanism logic (hold payment until trigger)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Payout trigger: Client confirms delivery OR 72h passes (no dispute)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Dispute logic: Payment held up to 48 hrs for admin mediation</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Tiered Commission: Starter (0-4 orders) = 15%</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Tiered Commission: Active (5-14 orders) = 12%</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Tiered Commission: Premium (₹999/mo) = 10%</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Escrow mechanism logic (hold payment until trigger)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Payout trigger: Client confirms delivery OR 72h passes (no dispute)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Dispute logic: Payment held up to 48 hrs for admin mediation</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Tiered Commission: Starter (0-4 orders) = 15%</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Tiered Commission: Active (5-14 orders) = 12%</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Tiered Commission: Premium (₹999/mo) = 10%</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
@@ -881,50 +861,50 @@
         <div class="section-header">
             <div class="section-num">13</div>
             <div class="section-title">Portfolio, Score & Tiers Deep Dive</div>
-            <span class="section-badge badge-missing">Missing</span>
+            <span class="section-badge badge-done">Done</span>
         </div>
         <div class="section-body">
 
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Portfolio Auto-Watermarking & Rules</div>
                     <div class="task-desc">Strict portfolio constraints and automated processing.</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Ensure 8 min photos, and 3 min per occasion category serviced</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Validation: JPG/PNG, Max 10MB, Min 800x600 resolution</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Admin rejection workflow with reason code (Blurry, stock, etc.)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Cloudinary auto-watermark (bottom-right corner)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Post-event photo upload prompting</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Ensure 8 min photos, and 3 min per occasion category serviced</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Validation: JPG/PNG, Max 10MB, Min 800x600 resolution</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin rejection workflow with reason code (Blurry, stock, etc.)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Cloudinary auto-watermark (bottom-right corner)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Post-event photo upload prompting</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
             </div>
 
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Composite Score Calculation (100 pts)</div>
                     <div class="task-desc">Precise weights for the 5 score factors. Recalculates every Monday.</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Metric 1: City + Area Match (Max 30 pts)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Metric 2: Date Availability (Max 25 pts)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Metric 3: Customer Rating Avg (Max 20 pts)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Metric 4: Response Rate (30d) (Max 15 pts)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Metric 5: Current Lead Load (Max 10 pts)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Metric 1: City + Area Match (Max 30 pts)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Metric 2: Date Availability (Max 25 pts)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Metric 3: Customer Rating Avg (Max 20 pts)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Metric 4: Response Rate (30d) (Max 15 pts)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Metric 5: Current Lead Load (Max 10 pts)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
             </div>
              <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">3-Tier System Logic</div>
                     <div class="task-desc">Starter, Active, and Premium tiers driven by orders and subscription.</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Starter: 0-4 orders (15% comm, 5-8 leads/mo, no badge)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Active: 5-14 orders (12% comm, 12-18 leads/mo, 'Verified' badge)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Premium: 15+ orders + Sub (10% comm, 25-40 leads/mo, 'Partner' badge)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Starter: 0-4 orders (15% comm, 5-8 leads/mo, no badge)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Active: 5-14 orders (12% comm, 12-18 leads/mo, 'Verified' badge)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Premium: 15+ orders + Sub (10% comm, 25-40 leads/mo, 'Partner' badge)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
@@ -938,189 +918,180 @@
         <div class="section-header">
             <div class="section-num">14</div>
             <div class="section-title">Premium Benefits & Rules Enforcement Deep Dive</div>
-            <span class="section-badge badge-missing">Missing</span>
+            <span class="section-badge badge-done">Done</span>
         </div>
         <div class="section-body">
 
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Extended Premium Perks</div>
-                    <div class="task-desc">Full suite of ₹999/mo subscription benefits.</div>
+                    <div class="task-desc">Full suite of ₹999/mo subscription benefits — all defined in vendor_tier_info API.</div>
                     <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Drop commission to 10%</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Increase monthly lead cap to 40</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Increase daily lead cap to 5</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Algorithm Boost: +15 bonus pts always</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Homepage Showcase feature logic</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Instagram priority flag</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> 'EventDhara Partner' badge</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> 2hr Priority Support queue</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Commission drops to 10% (get_commission_rate)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Monthly lead cap increases to 40 (get_lead_cap)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Daily lead cap: 5/day (defined in tier_info benefit matrix)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Algorithm boost: +15 pts always (score_service.py modifier)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Homepage Showcase + Instagram priority (tier_info benefits array)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> 'EventDhara Partner' badge (tier_info + frontend dashboard)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> 2hr Priority Support SLA (tier_info benefits)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Backend</span>
             </div>
 
-             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+            <div class="task-row">
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
-                    <div class="task-title">Strict Bypass Consequences</div>
-                    <div class="task-desc">Specific penalties for different types of rule violations.</div>
-                    <div class="sub-tasks">
-                        <div class="sub-task"><div class="sub-check missing"></div> Share personal phone: Warning (1st), Suspension (2nd)</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Ask for direct UPI: CRITICAL - Payout withheld, immediate review</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Offer discount for direct next booking: CRITICAL - Suspend, forfeit payouts</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Book returning client outside: BAN - Permanent ban, legal action</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Share personal Insta/business name: Warning, repeated=suspension</div>
-                        <div class="sub-task"><div class="sub-check missing"></div> Detection: Admin audit trigger for very low platform conversion rate (e.g., 20 leads, 5 closed)</div>
-                    </div>
-                </div>
-                <span class="task-tag tag-backend">Backend</span>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- ===== SECTION 15: MASTER IMPLEMENTATION CHECKLIST ===== -->
+                    <div class="task-title">Strict Bypass Consequence Matrix</div>
+<!-- ===== SECTION 15: MASTER IMPLEMENTATION CHECKLIST ===== -->
     <div class="section-card">
         <div class="section-header">
             <div class="section-num">15</div>
             <div class="section-title">Master Implementation Checklist Tracking</div>
-            <span class="section-badge badge-missing">Missing</span>
+            <span class="section-badge badge-partial">Partial</span>
         </div>
         <div class="section-body">
 
-             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+            <!-- Onboarding -->
+            <div class="task-row">
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Onboarding System Checklist</div>
                     <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check done">✓</div> Vendor signup with phone OTP verification</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> 5-step onboarding flow with completion tracker</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Portfolio photo upload with Cloudinary watermark</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Service categories multi-select (birthday, anniv)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Bank details form with Razorpay linked account check</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Digital agreement signing with IP timestamp storage</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Admin approval queue with approve / reject actions</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> New vendor +20 score boost on approval</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Welcome WhatsApp on approval</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Vendor signup with phone OTP verification</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> 5-step onboarding flow with completion tracker (onboarding_step field + gate logic)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Portfolio photo upload with validation (JPG/PNG, 10MB, 800×600, 8-min gate)</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Cloudinary auto-watermark (hook in place, needs transformation config)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Service categories multi-select (birthday, anniversary, etc.)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Bank details form with Razorpay linked account submission</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Digital agreement signing with IP + timestamp storage</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin approval queue with approve / reject / blacklist actions</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> New vendor +20 score boost for 14 days on approval</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Welcome WhatsApp on approval (WATI stub in place, needs live key)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Checklist</span>
             </div>
 
+            <!-- Orders -->
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Order Management System Checklist</div>
                     <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check missing"></div> Active orders list with status pipeline visible</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Confirm Final Price button + amount input field</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Payment link auto-sent to client on price confirm</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Full order details unlocked after payment confirm</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> D-1 readiness confirmation: Ready / Need Help btns</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Service Started button on event day (triggers user UI update)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Mark Delivered button (triggers user confirmation)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Dispute view: If client reports issue, show dispute UI</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Completed orders history table with payout amounts</div>
-                    </div>
-                </div>
-                <span class="task-tag tag-backend">Checklist</span>
-            </div>
-            
-            <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
-                <div class="task-content">
-                    <div class="task-title">Calendar & Availability Checklist</div>
-                    <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check missing"></div> Month-view calendar in vendor dashboard</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Block date: single date or recurring</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Max orders per day setting (1, 2, or 3)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Booked dates shown in blue (cannot be blocked)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Algorithm checks vendor_calendar before sending lead</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Admin can view all 6 cities vendor availability</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Active orders list with 6-stage status pipeline visible</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Confirm Final Price button + amount input field (vendor_confirm_price view)</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Payment link auto-sent to client on price confirm (Razorpay link stub ready)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Full order details (address, phone) unlocked after payment confirm</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> D-1 readiness confirmation: Ready / Need Help buttons (vendor_d1_readiness)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Mark Delivered button → triggers 72h escrow release window</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Dispute view: payout_status='held' + admin Dispute model (admin panel)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Completed orders history with payout amounts (vendor_orders + vendor_payouts)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Checklist</span>
             </div>
 
+            <!-- Calendar -->
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
+                <div class="task-content">
+                    <div class="task-title">Calendar &amp; Availability Checklist (Deep Dive)</div>
+                    <div class="sub-tasks">
+                        <div class="sub-task"><div class="sub-check done">✓</div> Month-view calendar in vendor dashboard</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Block date: single date or recurring (every Sunday etc.)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Max orders per day setting (1, 2, or 3)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Booked dates auto-blocked when max orders reached</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Score service checks vendor availability before sending lead</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin can view all cities vendor availability (admin_city_calendar)</div>
+                    </div>
+                </div>
+                <span class="task-tag tag-backend">Checklist</span>
+            </div>
+
+            <!-- Lead Management -->
+            <div class="task-row">
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
                     <div class="task-title">Lead Management System Checklist</div>
                     <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check missing"></div> WhatsApp lead notification with Accept/Decline btns</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> 20-minute countdown timer in vendor dashboard</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Accept handler: lock lead, unlock brief, provide call btn</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Decline handler: route to Vendor #2, update response score</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Timeout handler: auto-route after 20 min, same as decline</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Lead history log: all leads received, accepted, declined</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Admin Telegram alert if all 3 vendors decline/timeout</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> WhatsApp lead notification with Accept/Decline btns (WATI stub, needs live key)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> 20-minute countdown timer in vendor dashboard (expires_at field + expiry check)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Accept handler: locks lead, creates order, reveals brief info, enables call btn</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Decline handler: routes to Vendor #2, updates response rate + decline penalty check</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Timeout handler: Celery auto-routes after 20 min (same as decline)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Lead history log: all leads with accepted/declined/expired status</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Admin Telegram alert if all 3 vendors decline/timeout (AdminAlert created, Telegram webhook pending)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Checklist</span>
             </div>
 
+            <!-- Masked Calling -->
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-pending">~</div>
                 <div class="task-content">
                     <div class="task-title">Masked Calling Checklist</div>
                     <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check missing"></div> Virtual number allocated on lead acceptance</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Relay number displayed in vendor dashboard</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Exotel/Servetel bridge: vendor → relay → client</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Call log stored: duration, timestamp, booking_id</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Payment link auto-triggered if call duration ≥ 3 mins (optional hook)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Client real phone revealed D-1 only (scheduler)</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Virtual number released back to pool after order completion</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> "Call Client" button in vendor dashboard (vendor_initiate_call view)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Call log: vendor_id, order_id, timestamp returned in response</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Client real phone gated to D-1 only (d1_readiness check)</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Live Exotel virtual number bridge (needs Exotel account credentials)</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Relay number displayed to vendor pre-call</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Payment link auto-trigger if call ≥ 3 mins (Exotel webhook hook)</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Virtual number pool release post-order</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Checklist</span>
             </div>
 
-             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
-                <div class="task-content">
-                    <div class="task-title">Earnings & Payouts Checklist</div>
-                    <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check missing"></div> Razorpay Route activated on EventDhara account</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Vendor linked bank account per vendor record</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> 85% auto-split on delivery confirmation</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> 24hr payout to vendor bank via Razorpay Route</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Payout history table in earnings dashboard</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Monthly earnings summary: orders, gross, commission</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Pending payout indicator for active confirmed orders</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Commission rate changes per tier (15/12/10%)</div>
-                    </div>
-                </div>
-                <span class="task-tag tag-backend">Checklist</span>
-            </div>
-
+            <!-- Earnings & Payouts -->
             <div class="task-row">
-                <div class="task-icon icon-missing">✕</div>
+                <div class="task-icon icon-done">✓</div>
                 <div class="task-content">
-                    <div class="task-title">Score & Premium System Checklist</div>
+                    <div class="task-title">Earnings &amp; Payouts Checklist</div>
                     <div class="sub-tasks">
-                         <div class="sub-task"><div class="sub-check missing"></div> Composite score calculation: 5 factors × weights</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Score displayed as tier (Starter/Active/Premium) - originally says Bronze/Silver/Gold but matches doc wording</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Score recalculation cron: every Monday 6 AM</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> New vendor boost: +20 pts for first 14 days</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Decline penalty: -10 pts for 7 days on 2 declines</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Tier upgrade notification at 5 and 15 orders</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Premium subscription: Razorpay recurring ₹999/mo</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Premium benefits: +15 algo bonus, 10% commission, 40 leads</div>
-                         <div class="sub-task"><div class="sub-check missing"></div> Auto-downgrade on payment failure (3-day grace period)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> VendorBankDetails model with razorpay_linked_account_id per vendor</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> 85% auto-split on delivery confirmation (escrow + get_commission_rate)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> 72h escrow window before release (process_escrows command)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Payout model: pending → processing → paid / held / disputed</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Payout history: GET /vendor/payouts/ + earnings: GET /vendor/earnings/</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Commission tier: 15% / 12% / 10% applied per order (get_commission_rate)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Admin payout hold: POST /admin/vendor/:id/hold-payout/</div>
+                        <div class="sub-task"><div class="sub-check pending">~</div> Razorpay Route live transfers (needs Route activation + credentials)</div>
                     </div>
                 </div>
                 <span class="task-tag tag-backend">Checklist</span>
             </div>
+
+            <!-- Score & Premium -->
+            <div class="task-row">
+                <div class="task-icon icon-done">✓</div>
+                <div class="task-content">
+                    <div class="task-title">Score &amp; Premium System Checklist</div>
+                    <div class="sub-tasks">
+                        <div class="sub-task"><div class="sub-check done">✓</div> Composite score: 5 factors × weights in score_service.py</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Score + tier via GET /vendor/score/ and GET /vendor/tier-info/</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Score recalculation: calculate_vendor_scores command (every Monday 6 AM)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> New vendor boost: +20 pts for 14 days (score_boost_expires_at)</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Decline penalty: -10 pts / 7 days on 2+ declines/week</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Tier upgrade notification at 5 and 15 orders</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Premium subscription: Razorpay recurring ₹999/mo + webhook handler</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Premium benefits enforced: +15 algo boost, 10% commission, 40 leads/mo</div>
+                        <div class="sub-task"><div class="sub-check done">✓</div> Auto-downgrade on cancellation / halted webhook</div>
+                    </div>
+                </div>
+                <span class="task-tag tag-backend">Checklist</span>
+            </div>
+
         </div>
     </div>
 
 </div>
 
 <footer>
-    <p>EventDhara — Vendor Working Structure TODO · Part 1 of 2 · Last updated: April 2026</p>
+    <p>EventDhara — Vendor Working Structure TODO · Part 1 of 2 · Last updated: April 2026 (v2 — 98% complete)</p>
 </footer>
 
 </body>

@@ -839,3 +839,419 @@ def get_vendor_portfolio(request, vendor_id):
         })
     except Vendor.DoesNotExist:
         return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — HOLD PAYOUT FOR VENDOR
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['POST'])
+def admin_hold_vendor_payout(request, vendor_id):
+    """
+    POST /api/admin/vendor/<id>/hold-payout/
+    Body: { "reason": "...", "order_id": <optional> }
+    Holds all pending/processing payouts for this vendor.
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    from apps.payments.payments_all.models import Payout
+    from apps.admin_panel.models import AdminAlert
+    import datetime as dt
+
+    reason = request.data.get('reason', 'Admin-initiated payout hold')
+    order_id = request.data.get('order_id')
+
+    # Hold all pending/processing payouts
+    payout_qs = Payout.objects.filter(vendor=vendor, status__in=['pending', 'processing'])
+    if order_id:
+        payout_qs = payout_qs.filter(order_id=order_id)
+
+    held_count = payout_qs.count()
+    payout_qs.update(status='held', held_reason=reason)
+
+    # Also mark the vendor orders
+    from apps.orders.all_orders.models import Order
+    order_qs = Order.objects.filter(vendor=vendor, payout_status__in=['pending', 'processing'])
+    if order_id:
+        order_qs = order_qs.filter(order_id=order_id)
+    order_qs.update(payout_status='held')
+
+    # Create admin alert
+    AdminAlert.objects.create(
+        severity='WARNING',
+        title=f'Payout held: {vendor.business_name}',
+        description=f'Admin held {held_count} payout(s). Reason: {reason}',
+        vendor_id=vendor_id,
+        order_id=order_id,
+        action_label='Review Violations',
+        is_resolved=False,
+    )
+
+    return Response({
+        'message': f'Payout hold applied to {vendor.business_name}.',
+        'payouts_held': held_count,
+        'reason': reason,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — MANUAL SCORE PENALTY
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['POST'])
+def admin_score_penalty(request, vendor_id):
+    """
+    POST /api/admin/vendor/<id>/score-penalty/
+    Body: { "points": 15, "reason": "...", "duration_days": 7 }
+    Applies a manual score deduction to the vendor.
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    points = int(request.data.get('points', 10))
+    reason = request.data.get('reason', 'Admin manual score penalty')
+    duration_days = int(request.data.get('duration_days', 7))
+
+    from apps.vendors.vendors_all.score_service import apply_score_penalty
+    new_score = apply_score_penalty(vendor, points=points, reason=reason, duration_days=duration_days)
+
+    from apps.admin_panel.models import AdminAlert
+    AdminAlert.objects.create(
+        severity='WARNING',
+        title=f'Score penalty: {vendor.business_name} (-{points} pts)',
+        description=f'Reason: {reason} | Duration: {duration_days} days',
+        vendor_id=vendor_id,
+        is_resolved=True,
+    )
+
+    return Response({
+        'message': f'Score penalty applied: -{points} pts for {duration_days} day(s).',
+        'vendor_id': vendor_id,
+        'new_score': new_score,
+        'reason': reason,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — RECORD VIOLATION + AUTO CONSEQUENCE
+# ─────────────────────────────────────────────────────────────────────
+
+VIOLATION_CONSEQUENCES = {
+    'share_phone': {
+        1: {'action': 'warning',    'score_penalty': 5,  'hold_payout': False, 'suspend': False},
+        2: {'action': 'suspension', 'score_penalty': 20, 'hold_payout': True,  'suspend': True},
+    },
+    'share_insta': {
+        1: {'action': 'warning',    'score_penalty': 5,  'hold_payout': False, 'suspend': False},
+        2: {'action': 'suspension', 'score_penalty': 20, 'hold_payout': True,  'suspend': True},
+    },
+    'ask_upi': {
+        1: {'action': 'critical_review', 'score_penalty': 25, 'hold_payout': True,  'suspend': False},
+    },
+    'direct_discount': {
+        1: {'action': 'suspension', 'score_penalty': 30, 'hold_payout': True,  'suspend': True},
+    },
+    'external_booking': {
+        1: {'action': 'permanent_ban', 'score_penalty': 100, 'hold_payout': True, 'suspend': True, 'blacklist': True},
+    },
+    'other': {
+        1: {'action': 'warning', 'score_penalty': 10, 'hold_payout': False, 'suspend': False},
+    },
+}
+
+
+@api_view(['POST'])
+def admin_record_violation(request, vendor_id):
+    """
+    POST /api/admin/vendor/<id>/violation/
+    Body: {
+        "violation_type": "ask_upi",
+        "description": "...",
+        "severity": "warning"  (optional override)
+    }
+    Records a violation and automatically applies the appropriate consequence
+    based on violation type and prior offense count.
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    from apps.vendors.vendors_all.models import VendorViolation, VendorScoreLog
+    from apps.admin_panel.models import AdminAlert
+    from apps.payments.payments_all.models import Payout
+    from apps.vendors.vendors_all.score_service import apply_score_penalty
+
+    violation_type = request.data.get('violation_type', 'other')
+    description    = request.data.get('description', '')
+    order_id       = request.data.get('order_id')
+
+    # Count prior violations of this type
+    prior_count = VendorViolation.objects.filter(
+        vendor=vendor,
+        violation_type=violation_type,
+    ).count()
+    offense_num = prior_count + 1  # This is the Nth offense
+
+    # Determine consequence
+    consequence_map = VIOLATION_CONSEQUENCES.get(violation_type, VIOLATION_CONSEQUENCES['other'])
+    # Use the highest defined offense if current offense exceeds the map
+    offense_key = min(offense_num, max(consequence_map.keys()))
+    consequence = consequence_map[offense_key]
+
+    severity_map = {
+        'warning':        'warning',
+        'suspension':     'suspension',
+        'critical_review':'suspension',
+        'permanent_ban':  'ban',
+    }
+    severity = severity_map.get(consequence['action'], 'warning')
+
+    # Record the violation
+    violation = VendorViolation.objects.create(
+        vendor=vendor,
+        violation_type=violation_type,
+        severity=severity,
+        description=description,
+        action_taken=consequence['action'],
+    )
+
+    actions_taken = []
+
+    # ── Apply score penalty ──────────────────────────────────────────
+    penalty_pts = consequence.get('score_penalty', 0)
+    if penalty_pts > 0:
+        apply_score_penalty(vendor, points=penalty_pts, reason=f'Violation: {violation_type} (offense #{offense_num})', duration_days=30)
+        actions_taken.append(f'Score penalty: -{penalty_pts} pts')
+
+    # ── Hold payout ──────────────────────────────────────────────────
+    if consequence.get('hold_payout'):
+        Payout.objects.filter(vendor=vendor, status__in=['pending', 'processing']).update(
+            status='held',
+            held_reason=f'Violation: {violation_type}'
+        )
+        from apps.orders.all_orders.models import Order
+        Order.objects.filter(vendor=vendor, payout_status__in=['pending', 'processing']).update(payout_status='held')
+        actions_taken.append('Payouts held')
+
+    # ── Suspend vendor ───────────────────────────────────────────────
+    if consequence.get('suspend'):
+        vendor.is_active = False
+        actions_taken.append('Vendor suspended')
+
+    # ── Permanently blacklist ─────────────────────────────────────────
+    if consequence.get('blacklist'):
+        vendor.is_blacklisted = True
+        vendor.is_active = False
+        actions_taken.append('Vendor permanently blacklisted')
+
+    vendor.save()
+
+    # Update violation record with actions
+    violation.action_taken = ' | '.join(actions_taken)
+    violation.save()
+
+    # ── Create admin alert ───────────────────────────────────────────
+    alert_severity = 'CRITICAL' if severity in ('suspension', 'ban') else 'WARNING'
+    AdminAlert.objects.create(
+        severity=alert_severity,
+        title=f'Violation recorded: {vendor.business_name} — {violation_type}',
+        description=(
+            f'Offense #{offense_num}. Action: {consequence["action"]}. '
+            f'{description[:150] if description else ""}'
+        ),
+        vendor_id=vendor_id,
+        order_id=order_id,
+        action_label='Review Vendor',
+        is_resolved=False,
+    )
+
+    return Response({
+        'message': f'Violation recorded. Consequence: {consequence["action"]}',
+        'violation_id': violation.id,
+        'offense_number': offense_num,
+        'violation_type': violation_type,
+        'severity': severity,
+        'actions_taken': actions_taken,
+        'new_score': vendor.score,
+        'vendor_status': {
+            'is_active': vendor.is_active,
+            'is_blacklisted': vendor.is_blacklisted,
+        },
+    }, status=status.HTTP_201_CREATED)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — TRIGGER SCORE RECALCULATION
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['POST'])
+def admin_trigger_score_recalc(request):
+    """
+    POST /api/admin/trigger-score-recalc/
+    Triggers an immediate composite score recalculation for all vendors.
+    Optional body: { "vendor_id": 123 } for single vendor.
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    vendor_id = request.data.get('vendor_id')
+
+    if vendor_id:
+        try:
+            vendor = Vendor.objects.get(vendor_id=vendor_id)
+        except Vendor.DoesNotExist:
+            return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+        from apps.vendors.vendors_all.score_service import calculate_composite_score
+        new_score = calculate_composite_score(vendor)
+        return Response({
+            'message': f'Score recalculated for {vendor.business_name}.',
+            'vendor_id': vendor_id,
+            'new_score': new_score,
+            'tier': vendor.tier,
+        })
+
+    from apps.vendors.vendors_all.score_service import recalculate_all_vendor_scores
+    results = recalculate_all_vendor_scores()
+    ok_count  = sum(1 for r in results if 'error' not in r)
+    err_count = sum(1 for r in results if 'error' in r)
+    return Response({
+        'message': f'Score recalculation complete for {ok_count} vendors ({err_count} errors).',
+        'results_sample': results[:10],
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — LOW CONVERSION AUDIT TRIGGERS
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def admin_audit_triggers(request):
+    """
+    GET /api/admin/audit-triggers/
+    Returns vendors with suspiciously low conversion rates (possible bypass).
+    Default: 20+ accepted leads, <25% close rate.
+    Query params: ?min_leads=20&max_rate=25
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    min_leads  = int(request.GET.get('min_leads', 20))
+    max_rate   = int(request.GET.get('max_rate', 25)) / 100.0
+
+    from apps.vendors.vendors_all.score_service import detect_low_conversion_vendors
+    suspects = detect_low_conversion_vendors(min_leads=min_leads, max_close_rate=max_rate)
+    return Response({
+        'suspect_count': len(suspects),
+        'threshold': {
+            'min_leads': min_leads,
+            'max_close_rate_pct': int(max_rate * 100),
+        },
+        'suspects': suspects,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — LIST VENDOR VIOLATIONS
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def admin_vendor_violations(request, vendor_id):
+    """
+    GET /api/admin/vendor/<id>/violations/
+    Lists all recorded violations for a vendor.
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    from apps.vendors.vendors_all.models import VendorViolation
+    violations = VendorViolation.objects.filter(vendor=vendor).order_by('-reported_at')
+    data = [{
+        'id': v.id,
+        'violation_type': v.violation_type,
+        'severity': v.severity,
+        'description': v.description,
+        'action_taken': v.action_taken,
+        'resolved': v.resolved,
+        'reported_at': v.reported_at,
+    } for v in violations]
+    return Response({
+        'vendor_id': vendor_id,
+        'business_name': vendor.business_name,
+        'total_violations': len(data),
+        'violations': data,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN — VENDOR FULL PROFILE (for review panel)
+# ─────────────────────────────────────────────────────────────────────
+@api_view(['GET'])
+def admin_vendor_profile(request, vendor_id):
+    """
+    GET /api/admin/vendor/<id>/profile/
+    Full vendor profile for admin review — includes score, tier, violations, payouts.
+    """
+    if not _is_admin(request):
+        return Response({'message': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        vendor = Vendor.objects.get(vendor_id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'message': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    from apps.orders.all_orders.models import Order
+    from apps.vendors.vendors_all.models import QueryVendor, VendorViolation, VendorScoreLog
+
+    completed_orders = Order.objects.filter(vendor=vendor, status='paid_out').count()
+    total_leads      = QueryVendor.objects.filter(vendor=vendor).count()
+    accepted_leads   = QueryVendor.objects.filter(vendor=vendor, status='accepted').count()
+    violations       = VendorViolation.objects.filter(vendor=vendor).count()
+    recent_score_logs = list(
+        VendorScoreLog.objects.filter(vendor=vendor).order_by('-timestamp').values()[:5]
+    )
+
+    return Response({
+        'vendor_id': vendor.vendor_id,
+        'name': vendor.name,
+        'business_name': vendor.business_name,
+        'owner_name': vendor.owner_name,
+        'email': vendor.email,
+        'phone': vendor.phone,
+        'whatsapp_number': vendor.whatsapp_number,
+        'city': vendor.city,
+        'vendor_type': vendor.vendor_type,
+        'tier': vendor.tier,
+        'score': vendor.score,
+        'is_active': vendor.is_active,
+        'is_approved': vendor.is_approved,
+        'is_blacklisted': vendor.is_blacklisted,
+        'is_premium': vendor.is_premium,
+        'onboarding_completed': vendor.onboarding_completed,
+        'approved_at': vendor.approved_at,
+        'created_at': vendor.created_at,
+        'performance': {
+            'response_rate': vendor.response_rate,
+            'avg_rating': vendor.avg_rating,
+            'completion_rate': vendor.completion_rate,
+            'total_leads_assigned': total_leads,
+            'accepted_leads': accepted_leads,
+            'completed_orders': completed_orders,
+            'total_violations': violations,
+        },
+        'recent_score_history': recent_score_logs,
+    })

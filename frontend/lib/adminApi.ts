@@ -78,3 +78,69 @@ export async function deleteAdminService(serviceId: number) {
     method: 'DELETE'
   });
 }
+
+// ── NEW 9-PANEL CONTROL TOWER APIs ───────────────────────────────
+
+export async function fetchLiveDashboard() {
+  return adminFetch('/admin/live-dashboard/');
+}
+
+export async function resolveAlert(alertId: number) {
+  return adminFetch(`/admin/alerts/${alertId}/resolve/`, { method: 'POST' });
+}
+
+export async function fetchLeadPipeline() {
+  return adminFetch('/admin/leads/');
+}
+
+export async function reassignLead(queryId: number, vendorId?: number) {
+  return adminFetch(`/admin/leads/${queryId}/reassign/`, {
+    method: 'POST',
+    body: JSON.stringify({ vendor_id: vendorId })
+  });
+}
+
+export async function fetchVendorScoreboard() {
+  return adminFetch('/admin/vendors/scoreboard/');
+}
+
+export async function suspendVendor(vendorId: number, action: 'suspend' | 'unsuspend' = 'suspend') {
+  return adminFetch(`/admin/vendors/${vendorId}/suspend/`, {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  });
+}
+
+export async function fetchDisputes() {
+  return adminFetch('/admin/disputes/');
+}
+
+export async function resolveDispute(disputeId: number, action: 'resolve'|'refund'|'hold', notes: string = '') {
+  return adminFetch(`/admin/disputes/${disputeId}/resolve/`, {
+    method: 'POST',
+    body: JSON.stringify({ action, notes })
+  });
+}
+
+export async function fetchAnalytics() {
+  return adminFetch('/admin/analytics/');
+}
+
+export async function fetchCityManagerStats() {
+  return adminFetch('/admin/city-manager/');
+}
+
+export async function fetchWhatsAppStats() {
+  return adminFetch('/admin/whatsapp-bot/');
+}
+
+export async function fetchSystemConfig() {
+  return adminFetch('/admin/system-config/');
+}
+
+export async function updateSystemConfig(config: any) {
+  return adminFetch('/admin/system-config/', {
+    method: 'PATCH',
+    body: JSON.stringify(config)
+  });
+}

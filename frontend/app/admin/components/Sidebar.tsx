@@ -3,28 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  LayoutDashboard, 
-  Users, 
-  Store, 
+  Activity, 
+  ListFilter, 
   ShoppingCart, 
-  MessageSquare, 
-  FileText, 
-  Settings,
-  Bell,
-  Box,
-  Image as ImageIcon
+  Store, 
+  AlertTriangle,
+  BarChart, 
+  Map, 
+  MessageCircle, 
+  Settings
 } from "lucide-react";
 
 const navItems = [
-  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Users", href: "/admin/users", icon: Users },
-  { name: "Vendors", href: "/admin/vendors", icon: Store },
-  { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
-  { name: "Queries", href: "/admin/queries", icon: MessageSquare },
-  { name: "Services & Packages", href: "/admin/services", icon: Box },
-  { name: "AI Bidding", href: "/admin/bidding", icon: ImageIcon },
-  { name: "Reports", href: "/admin/reports", icon: FileText },
-  { name: "Settings", href: "/admin/settings", icon: Settings },
+  { name: "Live Dashboard", href: "/admin", icon: Activity },
+  { name: "Lead Pipeline", href: "/admin/leads", icon: ListFilter },
+  { name: "All Orders", href: "/admin/orders", icon: ShoppingCart },
+  { name: "Vendor Management", href: "/admin/vendors", icon: Store },
+  { name: "Dispute Management", href: "/admin/disputes", icon: AlertTriangle },
+  { name: "Analytics", href: "/admin/analytics", icon: BarChart },
+  { name: "City Manager", href: "/admin/city-manager", icon: Map },
+  { name: "WhatsApp Bot", href: "/admin/whatsapp-bot", icon: MessageCircle },
+  { name: "System Config", href: "/admin/system-config", icon: Settings },
 ];
 
 export default function Sidebar() {

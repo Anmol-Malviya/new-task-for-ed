@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'apps.orders.package_orders',
     'apps.orders.service_orders',
     'apps.payments.payments_all',
+    'apps.admin_panel',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

@@ -1,29 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Store, Activity, DollarSign, ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
-import { fetchAdminStats, fetchAdminOrders } from "@/lib/adminApi";
+import { 
+  Users, Store, Activity, DollarSign, ArrowUpRight, 
+  ArrowDownRight, RefreshCw, AlertTriangle, Info, Clock, CheckCircle2
+} from "lucide-react";
+import { fetchLiveDashboard, resolveAlert, reassignLead } from "@/lib/adminApi";
 
-interface Stats {
-  total_users: number;
-  total_vendors: number;
-  total_orders: number;
-  pending_queries: number;
-  completed_orders: number;
-}
-
-interface Order {
-  order_id: number;
-  user_name: string;
-  vendor_name: string;
-  total_price: number;
-  status: string;
-  payment_type: string;
-}
-
-export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+export default function LiveDashboardPage() {
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -31,12 +16,8 @@ export default function AdminDashboard() {
     setLoading(true);
     setError("");
     try {
-      const [statsData, ordersData] = await Promise.all([
-        fetchAdminStats(),
-        fetchAdminOrders(),
-      ]);
-      setStats(statsData);
-      setOrders(ordersData.slice(0, 6));
+      const liveData = await fetchLiveDashboard();
+      setData(liveData);
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard data");
     } finally {
@@ -46,23 +27,46 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData();
+    // Refresh every 30 seconds
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const statCards = stats
-    ? [
-        { title: "Total Users", value: stats.total_users.toLocaleString(), change: "+Active", isPositive: true, icon: Users, color: "from-blue-500 to-cyan-400" },
-        { title: "Active Vendors", value: stats.total_vendors.toLocaleString(), change: "+Registered", isPositive: true, icon: Store, color: "from-purple-500 to-indigo-500" },
-        { title: "Total Orders", value: stats.total_orders.toLocaleString(), change: `${stats.completed_orders} completed`, isPositive: true, icon: DollarSign, color: "from-emerald-400 to-teal-500" },
-        { title: "Pending Queries", value: stats.pending_queries.toLocaleString(), change: "Needs review", isPositive: false, icon: Activity, color: "from-orange-400 to-rose-500" },
-      ]
-    : [];
+  const handleResolveAlert = async (alertId: number) => {
+    try {
+      await resolveAlert(alertId);
+      loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (!data && loading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  const kpis = data?.kpis || { leads_today: 0, active_orders: 0, open_alerts: 0, gmv_today: 0 };
+  const alerts = data?.alerts || [];
+  const pipeline = data?.pipeline || [];
+  const cityHealth = data?.city_health || [];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      
+      {/* HEADER */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">System Overview</h2>
-          <p className="text-slate-400 mt-1">Live data from EventDhara backend.</p>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Live Dashboard</h2>
+          <p className="text-slate-400 mt-1 text-sm bg-[#1e1b4b] px-3 py-1 rounded-full inline-flex border border-indigo-500/30">
+            Control Tower — Auto-refreshing <span className="relative flex h-2 w-2 ml-2 mt-1.5 ">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+          </p>
         </div>
         <button onClick={loadData} disabled={loading} className="flex items-center gap-2 bg-slate-800 text-slate-300 px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-700 transition-colors text-sm">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -76,83 +80,167 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 animate-pulse">
-                <div className="h-4 bg-slate-800 rounded w-1/2 mb-4"></div>
-                <div className="h-8 bg-slate-800 rounded w-3/4 mb-3"></div>
-                <div className="h-3 bg-slate-800 rounded w-1/3"></div>
+      {/* 4 KPI STAT CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { title: "LEADS TODAY", value: (kpis.leads_today || 0).toLocaleString(), color: "from-blue-500 to-cyan-400", amount: "+12% vs yesterday" },
+          { title: "ACTIVE ORDERS", value: (kpis.active_orders || 0).toLocaleString(), color: "from-emerald-400 to-teal-500", amount: "Across 6 cities" },
+          { title: "ALERTS", value: (kpis.open_alerts || 0).toLocaleString(), color: "from-rose-500 to-red-400", amount: "Need action now" },
+          { title: "TODAY GMV", value: `₹${((kpis.gmv_today || 0)/100000).toFixed(2)}L`, color: "from-purple-500 to-indigo-500", amount: "Est. commission included" },
+        ].map((stat, i) => (
+          <div key={i} className="bg-[#1e2336] border border-slate-700/50 rounded-xl p-5 hover:border-slate-600 transition-colors">
+            <h3 className={`text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r mb-1 tracking-tighter ${stat.color}`} style={{ backgroundImage: `linear-gradient(to right, var(--tw-gradient-stops))` }}>{stat.value}</h3>
+            <p className="text-slate-400 text-xs font-semibold tracking-wider uppercase mb-3">{stat.title}</p>
+            <p className="text-slate-500 text-xs">{stat.amount}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ACTIVE ALERT FEED - takes 2/3 width */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">Active Alert Feed</h3>
+            <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded-md">{alerts.length} Types</span>
+          </div>
+          
+          <div className="space-y-3">
+            {alerts.length === 0 ? (
+              <div className="bg-[#1e2336] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3 opacity-50" />
+                <p>No active alerts requiring attention.</p>
               </div>
-            ))
-          : statCards.map((stat, i) => (
-              <div key={i} className="group relative bg-slate-900/40 border border-slate-800 rounded-2xl p-6 hover:bg-slate-800/60 transition-all duration-300 overflow-hidden">
-                <div className={`absolute -right-10 -top-10 w-32 h-32 bg-gradient-to-br ${stat.color} rounded-full blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity`}></div>
-                <div className="flex justify-between items-start relative z-10">
-                  <div>
-                    <p className="text-slate-400 text-sm font-medium">{stat.title}</p>
-                    <h3 className="text-3xl font-bold text-white mt-2 tracking-tight">{stat.value}</h3>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/50">
-                    <stat.icon className="h-6 w-6 text-slate-200" />
-                  </div>
+            ) : alerts.map((alert: any) => (
+              <div key={alert.alert_id} className={`flex items-start gap-4 p-4 rounded-xl border ${
+                alert.severity === 'CRITICAL' ? 'bg-rose-500/5 border-rose-500/20' : 
+                alert.severity === 'WARNING' ? 'bg-amber-500/5 border-amber-500/20' : 
+                'bg-blue-500/5 border-blue-500/20'
+              }`}>
+                <div className={`mt-1 flex-shrink-0 ${
+                  alert.severity === 'CRITICAL' ? 'text-rose-500' : 
+                  alert.severity === 'WARNING' ? 'text-amber-500' : 'text-blue-500'
+                }`}>
+                  {alert.severity === 'CRITICAL' && <AlertTriangle className="h-6 w-6" />}
+                  {alert.severity === 'WARNING' && <Clock className="h-6 w-6" />}
+                  {alert.severity === 'INFO' && <Info className="h-6 w-6" />}
                 </div>
-                <div className="mt-4 flex items-center gap-2 relative z-10">
-                  {stat.isPositive ? <ArrowUpRight className="h-4 w-4 text-emerald-400" /> : <ArrowDownRight className="h-4 w-4 text-rose-400" />}
-                  <span className={`text-sm font-medium ${stat.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{stat.change}</span>
+                <div className="flex-grow">
+                  <div className="flex justify-between items-start">
+                    <h4 className={`font-semibold ${
+                      alert.severity === 'CRITICAL' ? 'text-rose-400' : 
+                      alert.severity === 'WARNING' ? 'text-amber-400' : 'text-blue-400'
+                    }`}>{alert.title} — {alert.minutes_ago} Minutes</h4>
+                    <span className="text-xs text-slate-500">{alert.minutes_ago} min ago</span>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-1">{alert.description}</p>
+                </div>
+                <div className="flex-shrink-0">
+                  <button 
+                    onClick={() => handleResolveAlert(alert.alert_id)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      alert.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 
+                      alert.severity === 'WARNING' ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 
+                      'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {alert.action_label || 'Acknowledge'}
+                  </button>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* CITY HEALTH BARS - takes 1/3 width */}
+        <div className="bg-[#1e2336] border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-lg font-semibold text-white mb-6">City Health Bars</h3>
+          <div className="space-y-5">
+            {cityHealth.map((city: any, i: number) => {
+              // Calculate width based on max GMV or leads
+              const maxGmv = Math.max(...cityHealth.map((c: any) => c.gmv_today || 1));
+              const width = Math.max(10, ((city.gmv_today || 0) / maxGmv) * 100);
+              
+              // Colors alternate similar to mockup
+              const barColor = i % 2 === 0 ? "bg-emerald-500" : "bg-orange-500";
+              
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-16 flex-shrink-0">
+                    <span className="text-xs text-slate-400 block truncate">{city.city_name}</span>
+                  </div>
+                  <div className="flex-grow bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                    <div className={`${barColor} h-2.5 rounded-full`} style={{ width: `${width}%` }}></div>
+                  </div>
+                  <div className="w-24 flex-shrink-0 flex justify-between text-xs font-mono">
+                    <span className="text-slate-400">{city.active_leads}L</span>
+                    <span className="text-blue-400 px-1">{city.total_orders}O</span>
+                    <span className="text-emerald-400">{(city.gmv_today/1000).toFixed(0)}k</span>
+                  </div>
+                </div>
+              );
+            })}
+            {cityHealth.length === 0 && (
+              <p className="text-xs text-slate-500 text-center py-4">No city data available</p>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Recent Orders */}
-      <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-white">Recent Orders</h3>
-          <a href="/admin/orders" className="text-sm text-indigo-400 hover:text-indigo-300 font-medium">View All →</a>
+      {/* LIVE LEAD PIPELINE TABLE */}
+      <div className="bg-[#1e2336] border border-slate-700/50 rounded-xl overflow-hidden mt-6">
+        <div className="p-5 border-b border-slate-800 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-white">Live Lead Pipeline</h3>
+          <button className="text-xs text-indigo-400 hover:text-indigo-300">View All Leads →</button>
         </div>
-        {loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 bg-slate-800 rounded animate-pulse"></div>)}
-          </div>
-        ) : orders.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 text-sm">
-                  <th className="pb-3 font-medium">Order ID</th>
-                  <th className="pb-3 font-medium">Customer</th>
-                  <th className="pb-3 font-medium">Vendor</th>
-                  <th className="pb-3 font-medium">Amount</th>
-                  <th className="pb-3 font-medium">Status</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="bg-slate-800/50 text-slate-400 border-b border-slate-700/50">
+                <th className="px-5 py-3 font-medium">Lead ID</th>
+                <th className="px-5 py-3 font-medium">City</th>
+                <th className="px-5 py-3 font-medium">Occasion</th>
+                <th className="px-5 py-3 font-medium">Date</th>
+                <th className="px-5 py-3 font-medium">Vendor</th>
+                <th className="px-5 py-3 font-medium">Timer</th>
+                <th className="px-5 py-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {pipeline.map((lead: any, i: number) => (
+                <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                  <td className="px-5 py-3 text-rose-400 font-medium">{lead.query_id}</td>
+                  <td className="px-5 py-3 text-slate-300">{lead.city}</td>
+                  <td className="px-5 py-3 text-slate-300">{lead.occasion}</td>
+                  <td className="px-5 py-3 text-slate-400">{lead.date}</td>
+                  <td className="px-5 py-3 text-slate-400">{lead.vendor}</td>
+                  <td className={`px-5 py-3 font-medium ${
+                    lead.status === 'NO VENDOR' ? 'text-slate-500' :
+                    lead.timer_minutes > 15 && lead.status !== 'Confirmed' ? 'text-rose-400' : 'text-amber-400'
+                  }`}>
+                    {lead.status === 'Confirmed' ? '—' : 
+                     lead.status === 'NO VENDOR' ? 'EXPIRED' : 
+                     `${lead.timer_minutes}m`}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`font-medium uppercase tracking-wider text-[10px] ${
+                      lead.status === 'NO VENDOR' ? 'text-rose-500' : 
+                      lead.status === 'Confirmed' ? 'text-blue-400' : 'text-orange-500'
+                    }`}>
+                      {lead.status}
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="text-sm">
-                {orders.map((order) => (
-                  <tr key={order.order_id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
-                    <td className="py-4 font-mono text-indigo-300">#{order.order_id}</td>
-                    <td className="py-4 text-slate-200">{order.user_name}</td>
-                    <td className="py-4 text-slate-400">{order.vendor_name}</td>
-                    <td className="py-4 font-medium text-white">₹{order.total_price?.toLocaleString()}</td>
-                    <td className="py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        order.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                        order.status === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                        'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-slate-500 text-center py-8">No orders yet. Start by seeding data via Django admin at <span className="text-indigo-400">localhost:8000/admin</span></p>
-        )}
+              ))}
+              {pipeline.length === 0 && (
+                <tr className="text-center py-8">
+                  <td colSpan={7} className="px-5 py-8 text-slate-500">No leads in the pipeline for the last 24 hours.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
     </div>
   );
 }

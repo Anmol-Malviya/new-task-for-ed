@@ -3,8 +3,8 @@ setlocal
 
 :: Define project paths
 set BASE_DIR=%~dp0
-set BACKEND_DIR=%BASE_DIR%EventDhara-New-Model\backend
-set FRONTEND_DIR=%BASE_DIR%EventDhara-New-Model\frontend
+set BACKEND_DIR=%BASE_DIR%backend
+set FRONTEND_DIR=%BASE_DIR%frontend
 
 echo ==========================================
 echo       Starting EventDhara Project
@@ -12,7 +12,7 @@ echo ==========================================
 
 :: Start Django Backend
 echo Launching Backend server...
-start "EventDhara Backend" cmd /k "cd /d "%BACKEND_DIR%" && call .venv\Scripts\activate.bat && python manage.py runserver"
+start "EventDhara Backend" cmd /k "cd /d "%BACKEND_DIR%" && .venv\Scripts\python.exe manage.py runserver"
 
 :: Start Next.js Frontend
 echo Launching Frontend server...

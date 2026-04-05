@@ -137,17 +137,17 @@ function LoginContent() {
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 ml-1">Email address</label>
+                <label className="text-sm font-medium text-gray-700 ml-1">Username / Email</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                    <Mail className="h-5 w-5" />
+                    <User className="h-5 w-5" />
                   </div>
                   <input
-                    type="email"
+                    type="text"
                     required
-                    autoComplete="email"
+                    autoComplete="username"
                     className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:bg-white transition-all duration-200"
-                    placeholder="name@example.com"
+                    placeholder="Username or Email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
